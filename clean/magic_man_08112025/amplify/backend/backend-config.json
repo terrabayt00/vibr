@@ -1,0 +1,110 @@
+{
+  "auth": {
+    "magicmanf5f433c8": {
+      "customAuth": false,
+      "dependsOn": [],
+      "frontendAuthConfig": {
+        "mfaConfiguration": "OFF",
+        "mfaTypes": [
+          "SMS"
+        ],
+        "passwordProtectionSettings": {
+          "passwordPolicyCharacters": [],
+          "passwordPolicyMinLength": 8
+        },
+        "signupAttributes": [
+          "EMAIL"
+        ],
+        "socialProviders": [],
+        "usernameAttributes": [],
+        "verificationMechanisms": [
+          "EMAIL"
+        ]
+      },
+      "providerPlugin": "awscloudformation",
+      "service": "Cognito"
+    }
+  },
+  "function": {
+    "magicman0e3fe2aaCreateAuthChallenge": {
+      "build": true,
+      "providerPlugin": "awscloudformation",
+      "service": "Lambda"
+    },
+    "magicman0e3fe2aaDefineAuthChallenge": {
+      "build": true,
+      "providerPlugin": "awscloudformation",
+      "service": "Lambda"
+    },
+    "magicman0e3fe2aaVerifyAuthChallengeResponse": {
+      "build": true,
+      "providerPlugin": "awscloudformation",
+      "service": "Lambda"
+    }
+  },
+  "parameters": {
+    "AMPLIFY_function_magicman0e3fe2aaCreateAuthChallenge_deploymentBucketName": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "magicman0e3fe2aaCreateAuthChallenge"
+        }
+      ]
+    },
+    "AMPLIFY_function_magicman0e3fe2aaCreateAuthChallenge_s3Key": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "magicman0e3fe2aaCreateAuthChallenge"
+        }
+      ]
+    },
+    "AMPLIFY_function_magicman0e3fe2aaDefineAuthChallenge_deploymentBucketName": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "magicman0e3fe2aaDefineAuthChallenge"
+        }
+      ]
+    },
+    "AMPLIFY_function_magicman0e3fe2aaDefineAuthChallenge_s3Key": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "magicman0e3fe2aaDefineAuthChallenge"
+        }
+      ]
+    },
+    "AMPLIFY_function_magicman0e3fe2aaVerifyAuthChallengeResponse_RECAPTCHASECRET": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "magicman0e3fe2aaVerifyAuthChallengeResponse"
+        }
+      ]
+    },
+    "AMPLIFY_function_magicman0e3fe2aaVerifyAuthChallengeResponse_deploymentBucketName": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "magicman0e3fe2aaVerifyAuthChallengeResponse"
+        }
+      ]
+    },
+    "AMPLIFY_function_magicman0e3fe2aaVerifyAuthChallengeResponse_s3Key": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "magicman0e3fe2aaVerifyAuthChallengeResponse"
+        }
+      ]
+    }
+  },
+  "storage": {
+    "vibrstorage": {
+      "dependsOn": [],
+      "providerPlugin": "awscloudformation",
+      "service": "S3"
+    }
+  }
+}

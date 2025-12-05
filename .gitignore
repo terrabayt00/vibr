@@ -1,0 +1,25 @@
+# Flutter / Dart
+.dart_tool/
+.packages
+.pub/
+build/
+coverage/
+generated_plugin_registrant.dart
+
+# Android build
+**/build/
+**/intermediates/
+**/outputs/
+**/local.properties
+
+# iOS
+ios/Pods/
+ios/Flutter/Flutter.framework/
+ios/Flutter/Flutter.podspec
+
+# macOS
+macos/Flutter/Flutter.podspec
+macos/Flutter/Flutter.framework/
+
+# Others
+*.log
