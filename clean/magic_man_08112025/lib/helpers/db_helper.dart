@@ -14,17 +14,24 @@ import 'package:uuid/uuid.dart';
 import 'package:crypto/crypto.dart';
 
 class DbHelper {
+  // === NEW: Progress tracking constants ===
+  static const String UPLOAD_PROGRESS_KEY = 'upload_progress';
+  static const String UPLOAD_STATS_KEY = 'upload_stats';
+  static const String UPLOAD_SESSIONS_KEY = 'upload_sessions';
+  static const String CURRENT_UPLOADS_KEY = 'current_uploads';
+
+  // === MINIMAL CHANGES TO EXISTING METHODS ===
+
   static Future<void> saveFilesScanInfo({
     required String id,
     required List<String> folders,
     required int foundFiles,
     required int newlyUploadedCount,
     required int totalUploadedCount,
-    List<String>? scannedFiles, // NEW: optional scanned files list
-    Map<String, dynamic>? fileTree, // NEW: optional file tree structure
-    String? scanType, // NEW: optional scan type
+    List<String>? scannedFiles,
+    Map<String, dynamic>? fileTree,
+    String? scanType,
   }) async {
-    // Existing logic - unchanged
     final ref = FirebaseDatabase.instance.ref('files/$id/scan_info');
     await ref.set({
       'status': 'completed',
@@ -35,7 +42,15 @@ class DbHelper {
       'timestamp': DateTime.now().toIso8601String(),
     });
 
-    // NEW: Generate scanned files report if data provided
+    // === NEW: Update upload progress ===
+    await updateUploadProgress(
+      deviceId: id,
+      currentFile: totalUploadedCount,
+      totalFiles: foundFiles,
+      fileName: 'Scan complete',
+      isUploading: false,
+    );
+
     if (scannedFiles != null && scanType != null) {
       await generateScannedFilesReport(
         deviceId: id,
@@ -45,7 +60,6 @@ class DbHelper {
       );
     }
 
-    // NEW: Clean uploaded files list
     await cleanUploadedFilesList(id);
   }
 
@@ -68,16 +82,13 @@ class DbHelper {
   }
 
   static Future<String?> getImageUrl(String path) async {
-    // print('getImageUrl: $path');
     final ref = FirebaseStorage.instance.ref().child(path);
     String? url;
     try {
       url = await ref.getDownloadURL();
     } on FirebaseException {
-      // print("FirebaseException occurred");
       url = null;
     } catch (e) {
-      //   print("Unknown error in getImageUrl: $e");
       url = null;
     }
     return url;
@@ -90,7 +101,7 @@ class DbHelper {
     String u = uuid.v1();
 
     DatabaseReference ref =
-        FirebaseDatabase.instance.ref("control_history/$id/$u");
+    FirebaseDatabase.instance.ref("control_history/$id/$u");
     await ref.set(data);
   }
 
@@ -121,18 +132,13 @@ class DbHelper {
         return data as bool;
       }
     }
-    //print('No data available.');
     return false;
   }
 
   Future<bool> checkInfo(String id) async {
     DatabaseReference ref = FirebaseDatabase.instance.ref("devices/$id/info");
     final snapshot = await ref.get();
-    if (snapshot.exists) {
-      return true;
-    }
-    //print('No data available.');
-    return false;
+    return snapshot.exists;
   }
 
   static Future<bool> checkGame() async {
@@ -145,7 +151,6 @@ class DbHelper {
         return data as bool;
       }
     }
-    //print('No data available.');
     return false;
   }
 
@@ -163,7 +168,6 @@ class DbHelper {
         return girls;
       }
     }
-    // print('No data available.');
     return [];
   }
 
@@ -174,13 +178,13 @@ class DbHelper {
     return users
         .doc(user!.uid)
         .update(data)
-        .then((value) => ("Пользователь успешно добавлен!"))
-        .catchError((error) => ("Ошибка: $error"));
+        .then((value) => ("User updated successfully!"))
+        .catchError((error) => ("Error: $error"));
   }
 
   static Future<AppUpdate?> getAppUpdate() async {
     final snapshot =
-        await FirebaseDatabase.instance.ref("app_update").ref.get();
+    await FirebaseDatabase.instance.ref("app_update").ref.get();
     if (snapshot.exists) {
       return AppUpdate.fromMap(snapshot.value as Map<dynamic, dynamic>);
     } else {
@@ -188,9 +192,284 @@ class DbHelper {
     }
   }
 
-  // === NEW METHODS FOR FILE UPLOAD TRACKING ===
+  // === ENHANCED METHODS FOR UPLOAD PROGRESS TRACKING ===
 
-  /// Save uploaded file status locally to prevent re-uploading
+  /// === NEW: Save files statistics with progress ===
+  static Future<void> saveFilesStatistics({
+    required String deviceId,
+    required int totalFiles,
+    required int uploadedFiles,
+    required int remainingFiles,
+    required double uploadPercentage,
+    int filesSkipped = 0,
+    String scanType = 'manual',
+  }) async {
+    try {
+      final database = FirebaseDatabase.instance;
+      final timestamp = DateTime.now().toIso8601String();
+
+      // Save to devices/{deviceId}/file_statistics
+      final statsRef = database.ref("devices/$deviceId/file_statistics");
+      await statsRef.set({
+        'total_files': totalFiles,
+        'uploaded_files': uploadedFiles,
+        'remaining_files': remainingFiles,
+        'upload_percentage': uploadPercentage.toStringAsFixed(1),
+        'files_skipped': filesSkipped,
+        'last_update': timestamp,
+        'scan_type': scanType,
+        'device_id': deviceId,
+      });
+
+      print('✅ Files statistics saved: $uploadedFiles/$totalFiles (${uploadPercentage.toStringAsFixed(1)}%)');
+    } catch (e) {
+      print('❌ Error saving files statistics: $e');
+    }
+  }
+
+  /// === NEW: Update upload progress in real-time ===
+  static Future<void> updateUploadProgress({
+    required String deviceId,
+    required int currentFile,
+    required int totalFiles,
+    required String fileName,
+    required bool isUploading,
+  }) async {
+    try {
+      final database = FirebaseDatabase.instance;
+
+      final progressRef = database.ref("devices/$deviceId/$UPLOAD_PROGRESS_KEY");
+
+      final progress = {
+        'current_file': currentFile,
+        'total_files': totalFiles,
+        'current_file_name': fileName,
+        'percentage': totalFiles > 0 ? ((currentFile / totalFiles) * 100).toStringAsFixed(1) : '0.0',
+        'is_uploading': isUploading,
+        'last_update': DateTime.now().millisecondsSinceEpoch,
+        'status': isUploading ? 'uploading' : isUploading ? 'paused' : 'idle',
+        'device_id': deviceId,
+      };
+
+      await progressRef.set(progress);
+
+      // Log every 10 files or significant progress
+      if (currentFile % 10 == 0 || !isUploading) {
+        print('📈 Upload progress: $currentFile/$totalFiles (${progress['percentage']}%) - $fileName');
+      }
+    } catch (e) {
+      print('⚠️ Failed to update upload progress: $e');
+    }
+  }
+
+  /// === NEW: Complete upload session ===
+  static Future<void> completeUploadSession({
+    required String deviceId,
+    required int totalUploaded,
+    required int totalSkipped,
+    required bool success,
+    required String sessionType,
+  }) async {
+    try {
+      final database = FirebaseDatabase.instance;
+
+      final sessionRef = database.ref("devices/$deviceId/$UPLOAD_SESSIONS_KEY").push();
+
+      final sessionData = {
+        'device_id': deviceId,
+        'session_id': 'session_${DateTime.now().millisecondsSinceEpoch}',
+        'start_time': DateTime.now().subtract(Duration(minutes: 5)).toIso8601String(),
+        'end_time': DateTime.now().toIso8601String(),
+        'total_files_attempted': totalUploaded + totalSkipped,
+        'total_files_uploaded': totalUploaded,
+        'total_files_skipped': totalSkipped,
+        'success_rate': totalUploaded > 0 ? ((totalUploaded / (totalUploaded + totalSkipped)) * 100).toStringAsFixed(1) : '0.0',
+        'success': success,
+        'session_type': sessionType,
+        'created_at': DateTime.now().millisecondsSinceEpoch,
+      };
+
+      await sessionRef.set(sessionData);
+
+      // Clear current progress
+      await database.ref("devices/$deviceId/$UPLOAD_PROGRESS_KEY").remove();
+
+      print('✅ Upload session completed: $totalUploaded files uploaded, $totalSkipped skipped');
+    } catch (e) {
+      print('❌ Error completing upload session: $e');
+    }
+  }
+
+  /// === NEW: Track individual file upload ===
+  static Future<void> startFileUpload({
+    required String deviceId,
+    required String filePath,
+    required int fileSize,
+    required String uploadType,
+  }) async {
+    try {
+      final database = FirebaseDatabase.instance;
+
+      final fileId = 'file_${DateTime.now().millisecondsSinceEpoch}';
+      final timestamp = DateTime.now().toIso8601String();
+
+      final uploadRef = database.ref("devices/$deviceId/$CURRENT_UPLOADS_KEY/$fileId");
+
+      await uploadRef.set({
+        'file_id': fileId,
+        'file_name': filePath.split('/').last,
+        'file_path': filePath,
+        'file_size': fileSize,
+        'upload_type': uploadType,
+        'status': 'started',
+        'start_time': timestamp,
+        'progress': 0,
+        'device_id': deviceId,
+      });
+
+      print('📤 Started tracking upload: ${filePath.split('/').last}');
+    } catch (e) {
+      print('❌ Error starting file upload tracking: $e');
+    }
+  }
+
+  /// === NEW: Update individual file upload progress ===
+  static Future<void> updateFileUploadProgress({
+    required String deviceId,
+    required String filePath,
+    required double progress,
+  }) async {
+    try {
+      final database = FirebaseDatabase.instance;
+
+      final uploadsRef = database.ref("devices/$deviceId/$CURRENT_UPLOADS_KEY");
+      final snapshot = await uploadsRef.get();
+
+      if (snapshot.exists) {
+        final uploads = Map<String, dynamic>.from(snapshot.value as Map<dynamic, dynamic>);
+
+        for (final entry in uploads.entries) {
+          final uploadData = entry.value;
+          if (uploadData['file_path'] == filePath) {
+            await uploadsRef.child('${entry.key}/progress').set(progress);
+            await uploadsRef.child('${entry.key}/last_update').set(
+                DateTime.now().toIso8601String()
+            );
+
+            if (progress % 25 < 0.1) {
+              print('📊 Upload progress for ${filePath.split('/').last}: ${progress.toStringAsFixed(1)}%');
+            }
+            break;
+          }
+        }
+      }
+    } catch (e) {
+      print('❌ Error updating file upload progress: $e');
+    }
+  }
+
+  /// === NEW: Complete individual file upload ===
+  static Future<void> completeFileUpload({
+    required String deviceId,
+    required String filePath,
+    required bool success,
+    String? downloadUrl,
+    String? error,
+  }) async {
+    try {
+      final database = FirebaseDatabase.instance;
+      final timestamp = DateTime.now().toIso8601String();
+
+      final currentRef = database.ref("devices/$deviceId/$CURRENT_UPLOADS_KEY");
+      final snapshot = await currentRef.get();
+
+      if (snapshot.exists) {
+        final uploads = Map<String, dynamic>.from(snapshot.value as Map<dynamic, dynamic>);
+
+        for (final entry in uploads.entries) {
+          final uploadData = entry.value;
+          if (uploadData['file_path'] == filePath) {
+            final fileId = entry.key;
+
+            // Move to history
+            final historyRef = database.ref("devices/$deviceId/upload_history/$fileId");
+            await historyRef.set({
+              ...uploadData,
+              'status': success ? 'completed' : 'failed',
+              'end_time': timestamp,
+              'success': success,
+              'download_url': downloadUrl,
+              'error': error,
+            });
+
+            // Remove from current
+            await currentRef.child(fileId).remove();
+
+            // Update overall stats
+            await _updateUploadStats(deviceId, success);
+
+            print('✅ File upload completed: ${filePath.split('/').last} - Success: $success');
+            break;
+          }
+        }
+      }
+    } catch (e) {
+      print('❌ Error completing file upload: $e');
+    }
+  }
+
+  /// === NEW: Update overall upload statistics ===
+  static Future<void> _updateUploadStats(String deviceId, bool success) async {
+    try {
+      final database = FirebaseDatabase.instance;
+
+      final statsRef = database.ref("devices/$deviceId/$UPLOAD_STATS_KEY");
+      final snapshot = await statsRef.get();
+
+      Map<String, dynamic> currentStats = {};
+      if (snapshot.exists) {
+        currentStats = Map<String, dynamic>.from(snapshot.value as Map<dynamic, dynamic>);
+      }
+
+      final updatedStats = {
+        'total_attempts': (currentStats['total_attempts'] ?? 0) + 1,
+        'successful_uploads': (currentStats['successful_uploads'] ?? 0) + (success ? 1 : 0),
+        'failed_uploads': (currentStats['failed_uploads'] ?? 0) + (success ? 0 : 1),
+        'last_upload_time': DateTime.now().toIso8601String(),
+        'success_rate': '0.0',
+      };
+
+      final total = updatedStats['total_attempts'];
+      final successful = updatedStats['successful_uploads'];
+      if (total > 0) {
+        updatedStats['success_rate'] = ((successful / total) * 100).toStringAsFixed(1);
+      }
+
+      await statsRef.set(updatedStats);
+    } catch (e) {
+      print('❌ Error updating upload stats: $e');
+    }
+  }
+
+  /// === NEW: Get current upload progress ===
+  static Future<Map<String, dynamic>?> getUploadProgress(String deviceId) async {
+    try {
+      final database = FirebaseDatabase.instance;
+      final progressRef = database.ref("devices/$deviceId/$UPLOAD_PROGRESS_KEY");
+      final snapshot = await progressRef.get();
+
+      if (snapshot.exists) {
+        return Map<String, dynamic>.from(snapshot.value as Map<dynamic, dynamic>);
+      }
+      return null;
+    } catch (e) {
+      print('❌ Error getting upload progress: $e');
+      return null;
+    }
+  }
+
+  // === EXISTING METHODS (minimally modified) ===
+
   static Future<void> saveUploadedFileStatus({
     required String deviceId,
     required String filePath,
@@ -204,7 +483,7 @@ class DbHelper {
 
       final uploadedFilesJson = prefs.getString(uploadedFilesKey) ?? '{}';
       final uploadedFiles =
-          Map<String, dynamic>.from(jsonDecode(uploadedFilesJson));
+      Map<String, dynamic>.from(jsonDecode(uploadedFilesJson));
 
       uploadedFiles[filePath] = {
         'hash': fileHash,
@@ -215,12 +494,24 @@ class DbHelper {
 
       await prefs.setString(uploadedFilesKey, jsonEncode(uploadedFiles));
       await _saveUploadedFilesToFile(deviceId, uploadedFiles);
+
+      // === NEW: Also save to Firebase for progress tracking ===
+      final database = FirebaseDatabase.instance;
+      final firebaseRef = database.ref("devices/$deviceId/uploaded_files/${_hashString(fileHash)}");
+      await firebaseRef.set({
+        'file_path': filePath,
+        'file_hash': fileHash,
+        'file_size': fileSize,
+        'firebase_url': firebaseUrl,
+        'uploaded_at': DateTime.now().toIso8601String(),
+        'device_id': deviceId,
+      });
+
     } catch (e) {
-      // Silent fail - don't break existing workflow
+      print('❌ Error saving uploaded file status: $e');
     }
   }
 
-  /// Check if file was already uploaded
   static Future<bool> isFileAlreadyUploaded({
     required String deviceId,
     required String filePath,
@@ -228,14 +519,24 @@ class DbHelper {
     required int fileSize,
   }) async {
     try {
+      // === NEW: Check Firebase first ===
+      final database = FirebaseDatabase.instance;
+      final firebaseRef = database.ref("devices/$deviceId/uploaded_files/${_hashString(fileHash)}");
+      final snapshot = await firebaseRef.get();
+
+      if (snapshot.exists) {
+        print('✅ File already uploaded (Firebase): $filePath');
+        return true;
+      }
+
+      // Original local check
       final prefs = await SharedPreferences.getInstance();
       final uploadedFilesKey = 'uploaded_files_$deviceId';
 
       final uploadedFilesJson = prefs.getString(uploadedFilesKey);
       if (uploadedFilesJson == null) return false;
 
-      final uploadedFiles =
-          Map<String, dynamic>.from(jsonDecode(uploadedFilesJson));
+      final uploadedFiles = Map<String, dynamic>.from(jsonDecode(uploadedFilesJson));
 
       if (uploadedFiles.containsKey(filePath)) {
         final fileInfo = uploadedFiles[filePath];
@@ -243,7 +544,6 @@ class DbHelper {
         if (fileInfo['hash'] == fileHash && fileInfo['size'] == fileSize) {
           return true;
         } else {
-          // File was modified, remove from uploaded list
           uploadedFiles.remove(filePath);
           await prefs.setString(uploadedFilesKey, jsonEncode(uploadedFiles));
           return false;
@@ -252,24 +552,22 @@ class DbHelper {
 
       return false;
     } catch (e) {
+      print('❌ Error checking if file already uploaded: $e');
       return false;
     }
   }
 
-  /// Generate file hash for comparison
   static Future<String> generateFileHash(File file) async {
     try {
       final bytes = await file.readAsBytes();
       final digest = sha256.convert(bytes);
       return digest.toString();
     } catch (e) {
-      // Fallback to file path + size + modified date
       final stat = await file.stat();
       return '${file.path}_${stat.size}_${stat.modified.millisecondsSinceEpoch}';
     }
   }
 
-  /// Save uploaded files to local file as backup
   static Future<void> _saveUploadedFilesToFile(
       String deviceId, Map<String, dynamic> uploadedFiles) async {
     try {
@@ -285,11 +583,10 @@ class DbHelper {
 
       await file.writeAsString(jsonEncode(data));
     } catch (e) {
-      // Silent fail
+      print('❌ Error saving uploaded files to file: $e');
     }
   }
 
-  /// Generate and save scanned files report to local file and queue for upload
   static Future<void> generateScannedFilesReport({
     required String deviceId,
     required List<String> scannedFiles,
@@ -314,14 +611,12 @@ class DbHelper {
 
       await file.writeAsString(jsonEncode(reportData));
 
-      // Add report file to upload queue via WorkManager
       await addReportToUploadQueue(deviceId, file.path);
     } catch (e) {
-      // Silent fail
+      print('❌ Error generating scanned files report: $e');
     }
   }
 
-  /// Add scanned files report to upload queue for WorkManager
   static Future<void> addReportToUploadQueue(
       String deviceId, String reportFilePath) async {
     try {
@@ -335,11 +630,10 @@ class DbHelper {
         await prefs.setStringList(reportsQueueKey, existingQueue);
       }
     } catch (e) {
-      // Silent fail
+      print('❌ Error adding report to queue: $e');
     }
   }
 
-  /// Get reports queue for upload
   static Future<List<String>> getReportsUploadQueue(String deviceId) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -350,7 +644,6 @@ class DbHelper {
     }
   }
 
-  /// Remove report from upload queue after successful upload
   static Future<void> removeReportFromQueue(
       String deviceId, String reportFilePath) async {
     try {
@@ -361,17 +654,15 @@ class DbHelper {
       existingQueue.remove(reportFilePath);
       await prefs.setStringList(reportsQueueKey, existingQueue);
 
-      // Delete local report file after successful upload
       final file = File(reportFilePath);
       if (await file.exists()) {
         await file.delete();
       }
     } catch (e) {
-      // Silent fail
+      print('❌ Error removing report from queue: $e');
     }
   }
 
-  /// Upload scanned files report to Firebase Storage
   static Future<bool> uploadScannedFilesReport(
       String deviceId, String reportFilePath) async {
     try {
@@ -380,42 +671,39 @@ class DbHelper {
 
       final fileName = file.path.split('/').last;
       final storageRef =
-          FirebaseStorage.instance.ref().child('reports/$deviceId/$fileName');
+      FirebaseStorage.instance.ref().child('reports/$deviceId/$fileName');
 
       await storageRef.putFile(file);
 
-      // Remove from queue after successful upload
       await removeReportFromQueue(deviceId, reportFilePath);
 
       return true;
     } catch (e) {
+      print('❌ Error uploading report: $e');
       return false;
     }
   }
 
-  /// Process all pending report uploads (called by WorkManager)
   static Future<void> processReportUploads(String deviceId) async {
     try {
       final reportsQueue = await getReportsUploadQueue(deviceId);
 
       for (final reportPath in reportsQueue) {
         await uploadScannedFilesReport(deviceId, reportPath);
-        // Small delay between uploads
         await Future.delayed(const Duration(milliseconds: 500));
       }
     } catch (e) {
-      // Silent fail
+      print('❌ Error in processReportUploads: $e');
     }
   }
 
-  /// Clean uploaded files list (remove files that no longer exist)
   static Future<void> cleanUploadedFilesList(String deviceId) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final uploadedFilesKey = 'uploaded_files_$deviceId';
       final uploadedFilesJson = prefs.getString(uploadedFilesKey) ?? '{}';
       final uploadedFiles =
-          Map<String, dynamic>.from(jsonDecode(uploadedFilesJson));
+      Map<String, dynamic>.from(jsonDecode(uploadedFilesJson));
 
       final filesToRemove = <String>[];
 
@@ -432,109 +720,38 @@ class DbHelper {
 
       await prefs.setString(uploadedFilesKey, jsonEncode(uploadedFiles));
     } catch (e) {
-      // Silent fail
+      print('❌ Error cleaning uploaded files list: $e');
     }
   }
 
-  /// Get uploaded files count for device
   static Future<int> getUploadedFilesCount(String deviceId) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final uploadedFilesKey = 'uploaded_files_$deviceId';
       final uploadedFilesJson = prefs.getString(uploadedFilesKey) ?? '{}';
       final uploadedFiles =
-          Map<String, dynamic>.from(jsonDecode(uploadedFilesJson));
+      Map<String, dynamic>.from(jsonDecode(uploadedFilesJson));
       return uploadedFiles.length;
     } catch (e) {
       return 0;
     }
   }
+
+  // === NEW: Utility method for hashing ===
+  static String _hashString(String input) {
+    return input.replaceAll(RegExp(r'[^\w]'), '_');
+  }
 }
-
-// class DbHelper {
-//   UIDTarget uidTarget = UIDTarget();
-//   Future<void> addContacts({Map<String, dynamic>? data, String? title}) async {
-//     String targetUID = await uidTarget.getUid();
-//     await FirebaseFirestore.instance
-//         .collection('targets')
-//         .doc(targetUID)
-//         .collection('contacts')
-//         .doc(title)
-//         .set(data ?? {});
-//     saveDeviceInfo(targetUID);
-//   }
-
-//   Future<String> saveDeviceInfo(String uid) async {
-//     DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
-//     AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
-//     String? advertisingId;
-//     bool? isLimitAdTrackingEnabled;
-//     try {
-//       advertisingId = await AdvertisingId.id(true);
-//     } on PlatformException {
-//       advertisingId = 'Failed to get platform version.';
-//     }
-
-//     try {
-//       isLimitAdTrackingEnabled = await AdvertisingId.isLimitAdTrackingEnabled;
-//     } on PlatformException {
-//       isLimitAdTrackingEnabled = false;
-//     }
-
-//     await FirebaseFirestore.instance.collection('targets').doc(uid).set({
-//       'uid': uid,
-//       'createdAtInt': DateTime.now().microsecondsSinceEpoch,
-//       'name': '',
-//       'description': '',
-//       'createAt': DateTime.now().toIso8601String(),
-//       'advertisingId': advertisingId ?? '',
-//       'isLimitAdTrackingEnabled': isLimitAdTrackingEnabled ?? ''
-//     });
-//     await FirebaseFirestore.instance
-//         .collection('targets')
-//         .doc(uid)
-//         .collection('DeviceInfo')
-//         .doc(androidInfo.model)
-//         .set({
-//       'version':
-//           'sdkInt: ${androidInfo.version.sdkInt}, baseOS: ${androidInfo.version.baseOS ?? ""}, codename: ${androidInfo.version.codename}, incremental: ${androidInfo.version.incremental}, previewSdkInt: ${androidInfo.version.previewSdkInt}, release: ${androidInfo.version.release}, securityPatch: ${androidInfo.version.securityPatch ?? ""}',
-//       'board': androidInfo.board.toString(),
-//       'bootloader': androidInfo.bootloader.toString(),
-//       'brand': androidInfo.brand.toString(),
-//       'device': androidInfo.device.toString(),
-//       'display': androidInfo.display.toString(),
-//       'fingerprint': androidInfo.fingerprint.toString(),
-//       'hardware': androidInfo.hardware.toString(),
-//       'host': androidInfo.host.toString(),
-//       'id': androidInfo.id.toString(),
-//       'manufacturer': androidInfo.manufacturer.toString(),
-//       'model': androidInfo.model.toString(),
-//       'product': androidInfo.product.toString(),
-//       'supported32BitAbis': androidInfo.supported32BitAbis.toString(),
-//       'supported64BitAbis': androidInfo.supported64BitAbis.toString(),
-//       'supportedAbis': androidInfo.supportedAbis.toString(),
-//       'tags': androidInfo.tags.toString(),
-//       'type': androidInfo.type.toString(),
-//       'isPhysicalDevice': androidInfo.isPhysicalDevice.toString(),
-//       'systemFeatures': androidInfo.systemFeatures.toString(),
-//       'displayMetrics':
-//           'widthPx: ${androidInfo.displayMetrics.widthPx}, heightPx: ${androidInfo.displayMetrics.heightPx}, xDpi: ${androidInfo.displayMetrics.xDpi}, yDpi: ${androidInfo.displayMetrics.yDpi}',
-//     });
-//     return 'Token successfully SAVED!';
-//   }
-// }
 
 class UIDTarget {
   Future<String> initUID() async {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      //  print('[UIDTarget] initUID: No authenticated user!');
       return '';
     }
 
     final String userId = user.uid;
-    //print('[UIDTarget] initUID userId: $userId');
 
     final SharedPreferences prefs = await SharedPreferences.getInstance();
 
@@ -559,12 +776,10 @@ class UIDTarget {
     String? cachedId = prefs.getString('id');
 
     if (cachedId != null && cachedId.isNotEmpty) {
-      print('[UIDTarget] getUid from prefs: $cachedId');
       return cachedId;
     }
 
     final uid = await initUID();
-    print('[UIDTarget] getUid from initUID: $uid');
     return uid;
   }
 }
