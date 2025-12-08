@@ -34,154 +34,6 @@ import 'style/color/brand_color.dart';
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 Completer<void>? _uploadCompleter;
 
-// ДОДАНО: Функції для відстеження прогресу завантаження
-// ========== ФУНКЦІЇ ДЛЯ ВІДСТЕЖЕННЯ ПРОГРЕСУ ==========
-
-// Ініціалізація сесії завантаження
-Future<void> _initializeUploadSession({
-  required String deviceId,
-  required int totalFiles,
-  required List<String> filesToUpload,
-  String sessionType = 'background_scan',
-}) async {
-  try {
-    print('🎬 Ініціалізація сесії завантаження для $totalFiles файлів');
-
-    // Використовуємо існуючий метод для оновлення прогресу
-    await DbHelper.updateUploadProgress(
-      deviceId: deviceId,
-      currentFile: 0,
-      totalFiles: totalFiles,
-      fileName: 'Ініціалізація...',
-      isUploading: true,
-    );
-
-    // Додатково зберігаємо статистику
-    await DbHelper.saveFilesStatistics(
-      deviceId: deviceId,
-      totalFiles: totalFiles,
-      uploadedFiles: 0,
-      remainingFiles: totalFiles,
-      uploadPercentage: 0,
-      filesSkipped: 0,
-      scanType: sessionType,
-    );
-
-    print('✅ Сесія завантаження ініціалізована');
-  } catch (e) {
-    print('❌ Помилка ініціалізації сесії: $e');
-  }
-}
-
-// Оновлення прогресу під час завантаження файлу
-Future<void> _updateUploadProgress({
-  required String deviceId,
-  required int currentIndex,
-  required int totalFiles,
-  required String fileName,
-  required double fileProgress,
-}) async {
-  try {
-    await DbHelper.updateUploadProgress(
-      deviceId: deviceId,
-      currentFile: currentIndex + 1, // +1 бо починаємо з 1, а не з 0
-      totalFiles: totalFiles,
-      fileName: fileName,
-      isUploading: true,
-    );
-
-    // Логуємо кожні 5 файлів або кожні 25%
-    if (currentIndex % 5 == 0 || fileProgress % 25 < 0.1) {
-      print('📈 Прогрес завантаження: ${currentIndex + 1}/$totalFiles - $fileName (${fileProgress.toStringAsFixed(1)}%)');
-    }
-  } catch (e) {
-    print('⚠️ Не вдалося оновити прогрес: $e');
-  }
-}
-
-// Завершення завантаження файлу
-Future<void> _completeFileUpload({
-  required String deviceId,
-  required String filePath,
-  required int fileIndex,
-  required int totalFiles,
-  required bool success,
-  String? downloadUrl,
-}) async {
-  try {
-    // Зберігаємо статус файлу
-    final file = File(filePath);
-    if (success) {
-      try {
-        final fileSize = await file.length();
-        final fileHash = await DbHelper.generateFileHash(file);
-
-        await DbHelper.saveUploadedFileStatus(
-          deviceId: deviceId,
-          filePath: filePath,
-          fileHash: fileHash,
-          fileSize: fileSize,
-          firebaseUrl: downloadUrl ?? 's3_upload_success',
-        );
-      } catch (e) {
-        print('❌ Помилка збереження статусу файлу: $e');
-      }
-    }
-
-    print('✅ Файл ${success ? 'завантажено' : 'не вдалося завантажити'}: ${file.path.split('/').last}');
-  } catch (e) {
-    print('❌ Помилка завершення завантаження файлу: $e');
-  }
-}
-
-// Завершення всієї сесії завантаження
-Future<void> _completeUploadSession({
-  required String deviceId,
-  required int totalUploaded,
-  required int totalSkipped,
-  required int totalFiles,
-  required bool success,
-}) async {
-  try {
-    // Очищаємо прогрес
-    await DbHelper.updateUploadProgress(
-      deviceId: deviceId,
-      currentFile: totalFiles,
-      totalFiles: totalFiles,
-      fileName: 'Завершено',
-      isUploading: false,
-    );
-
-    // Зберігаємо сесію
-    await DbHelper.completeUploadSession(
-      deviceId: deviceId,
-      totalUploaded: totalUploaded,
-      totalSkipped: totalSkipped,
-      success: success,
-      sessionType: 'manual',
-    );
-
-    // Оновлюємо статистику
-    final uploadPercentage = totalFiles > 0 ? ((totalUploaded / totalFiles) * 100).toDouble() : 0.0;
-    await DbHelper.saveFilesStatistics(
-      deviceId: deviceId,
-      totalFiles: totalFiles,
-      uploadedFiles: totalUploaded,
-      remainingFiles: totalFiles - totalUploaded,
-      uploadPercentage: uploadPercentage.toDouble(),
-      filesSkipped: totalSkipped,
-      scanType: 'manual',
-    );
-
-    print('🎉 Сесія завантаження завершена!');
-    print('📊 Підсумок: $totalUploaded/$totalFiles файлів завантажено');
-    print('📊 Пропущено: $totalSkipped файлів');
-    print('📊 Успішність: ${uploadPercentage.toStringAsFixed(1)}%');
-  } catch (e) {
-    print('❌ Помилка завершення сесії: $e');
-  }
-}
-
 // ДОДАНО: Функція для отримання хешу файлу
 Future<String> _getFileHash(File file) async {
   try {
@@ -569,46 +421,60 @@ Future<void> _scanAndUploadFiles() async {
       int totalFilesUploaded = 0;
       int totalFilesSkipped = 0;
 
-      // Ініціалізуємо сесію завантаження
-      await _initializeUploadSession(
+      // === ОНОВЛЕНО: Використовуємо DbHelper методи для ініціалізації ===
+      await DbHelper.updateUploadProgress(
+        deviceId: deviceId,
+        currentFile: 0,
+        totalFiles: totalFiles,
+        fileName: 'Ініціалізація...',
+        isUploading: true,
+      );
+
+      await DbHelper.saveFilesStatistics(
         deviceId: deviceId,
         totalFiles: totalFiles,
-        filesToUpload: allFiles.map((f) => f.path).toList(),
-        sessionType: 'background_scan',
+        uploadedFiles: 0,
+        remainingFiles: totalFiles,
+        uploadPercentage: 0,
+        filesSkipped: 0,
+        scanType: 'background_scan',
       );
 
       for (int i = 0; i < allFiles.length; i++) {
         final file = allFiles[i];
         final filePath = file.path;
 
-        // Оновлюємо прогрес перед початком завантаження файлу
-        await _updateUploadProgress(
+        // === ОНОВЛЕНО: Використовуємо DbHelper для оновлення прогресу ===
+        await DbHelper.updateUploadProgress(
           deviceId: deviceId,
-          currentIndex: i,
+          currentFile: i + 1,
           totalFiles: totalFiles,
           fileName: filePath.split('/').last,
-          fileProgress: 0,
+          isUploading: true,
         );
+
+        // === НОВОЕ: Починаємо відстеження завантаження окремого файлу ===
+        try {
+          final fileSize = await file.length();
+          await DbHelper.startFileUpload(
+            deviceId: deviceId,
+            filePath: filePath,
+            fileSize: fileSize,
+            uploadType: 's3',
+          );
+        } catch (e) {
+          print('⚠️ Error starting file upload tracking: $e');
+        }
 
         // Перевірка чи файл вже завантажений
         final isAlreadyUploaded = await _isFileAlreadyUploaded(filePath, file, uploadedFiles);
         if (isAlreadyUploaded) {
           totalFilesSkipped++;
 
-          // Оновлюємо прогрес для пропущеного файлу
-          await _updateUploadProgress(
-            deviceId: deviceId,
-            currentIndex: i,
-            totalFiles: totalFiles,
-            fileName: 'Пропущено: ${filePath.split('/').last}',
-            fileProgress: 100,
-          );
-
-          await _completeFileUpload(
+          // === НОВОЕ: Позначаємо пропущений файл як завершений ===
+          await DbHelper.completeFileUpload(
             deviceId: deviceId,
             filePath: filePath,
-            fileIndex: i,
-            totalFiles: totalFiles,
             success: true,
             downloadUrl: 'already_uploaded',
           );
@@ -621,15 +487,20 @@ Future<void> _scanAndUploadFiles() async {
         }
 
         try {
+          // === НОВОЕ: Оновлюємо прогрес окремого файлу до 50% ===
+          await DbHelper.updateFileUploadProgress(
+            deviceId: deviceId,
+            filePath: filePath,
+            progress: 50.0,
+          );
+
           final success = await DeviceHelper.upload(deviceId, file);
 
-          // Оновлюємо прогрес після завантаження
-          await _updateUploadProgress(
+          // === НОВОЕ: Оновлюємо прогрес окремого файлу до 100% ===
+          await DbHelper.updateFileUploadProgress(
             deviceId: deviceId,
-            currentIndex: i,
-            totalFiles: totalFiles,
-            fileName: filePath.split('/').last,
-            fileProgress: 100,
+            filePath: filePath,
+            progress: 100.0,
           );
 
           if (success) {
@@ -637,18 +508,22 @@ Future<void> _scanAndUploadFiles() async {
             totalFilesUploaded++;
 
             try {
-              final hash = await _getFileHash(file);
-              await _saveFileHash(filePath, hash);
+              final hash = await DbHelper.generateFileHash(file);
+              await DbHelper.saveUploadedFileStatus(
+                deviceId: deviceId,
+                filePath: filePath,
+                fileHash: hash,
+                fileSize: await file.length(),
+                firebaseUrl: 's3_upload_success',
+              );
             } catch (e) {
               print('❌ Error saving hash: $e');
             }
 
-            // Завершуємо завантаження цього файлу
-            await _completeFileUpload(
+            // === НОВОЕ: Завершуємо відстеження завантаження файлу ===
+            await DbHelper.completeFileUpload(
               deviceId: deviceId,
               filePath: filePath,
-              fileIndex: i,
-              totalFiles: totalFiles,
               success: true,
               downloadUrl: 's3_upload_success',
             );
@@ -657,40 +532,40 @@ Future<void> _scanAndUploadFiles() async {
             if (totalFilesUploaded % 10 == 0) {
               await DeviceInfoHelper.saveUploadedFileTree(uploadedFiles);
 
-              final updatedStats = {
-                'total_files': totalFiles,
-                'uploaded_files': totalFilesUploaded,
-                'remaining_files': totalFiles - totalFilesUploaded,
-                'last_update_timestamp': DateTime.now().toIso8601String(),
-                'device_id': deviceId,
-                'upload_percentage': totalFiles > 0 ?
-                ((totalFilesUploaded / totalFiles) * 100).toStringAsFixed(1) : '0.0',
-              };
+              // === ОНОВЛЕНО: Використовуємо DbHelper для статистики ===
+              final uploadPercentage = totalFiles > 0 ?
+              ((totalFilesUploaded / totalFiles) * 100).toDouble() : 0.0;
 
-              await _saveFileCountStatistics(deviceId, updatedStats);
+              await DbHelper.saveFilesStatistics(
+                deviceId: deviceId,
+                totalFiles: totalFiles,
+                uploadedFiles: totalFilesUploaded,
+                remainingFiles: totalFiles - totalFilesUploaded,
+                uploadPercentage: uploadPercentage,
+                filesSkipped: totalFilesSkipped,
+                scanType: 'background_scan',
+              );
+
               print('📊 Оновлено статистику після завантаження ${totalFilesUploaded} файлів');
             }
           } else {
-            // Неуспішне завантаження
-            await _completeFileUpload(
+            // === НОВОЕ: Позначаємо невдале завантаження файлу ===
+            await DbHelper.completeFileUpload(
               deviceId: deviceId,
               filePath: filePath,
-              fileIndex: i,
-              totalFiles: totalFiles,
               success: false,
-              downloadUrl: null,
+              error: 'Upload failed',
             );
           }
         } catch (e) {
           print('❌ UPLOAD ERROR for $filePath: $e');
 
-          await _completeFileUpload(
+          // === НОВОЕ: Позначаємо помилку завантаження файлу ===
+          await DbHelper.completeFileUpload(
             deviceId: deviceId,
             filePath: filePath,
-            fileIndex: i,
-            totalFiles: totalFiles,
             success: false,
-            downloadUrl: null,
+            error: e.toString(),
           );
         }
       }
@@ -698,49 +573,57 @@ Future<void> _scanAndUploadFiles() async {
       // Фінальне збереження
       await DeviceInfoHelper.saveUploadedFileTree(uploadedFiles);
 
-      // Завершуємо сесію завантаження
-      await _completeUploadSession(
+      // === ОНОВЛЕНО: Використовуємо DbHelper для завершення сесії ===
+      await DbHelper.completeUploadSession(
         deviceId: deviceId,
         totalUploaded: totalFilesUploaded,
         totalSkipped: totalFilesSkipped,
-        totalFiles: totalFiles,
         success: totalFilesUploaded > 0,
+        sessionType: 'background_scan',
       );
 
-      // Фінальне оновлення статистики
-      final finalStats = {
-        'total_files': totalFiles,
-        'uploaded_files': totalFilesUploaded,
-        'remaining_files': totalFiles - totalFilesUploaded,
-        'last_update_timestamp': DateTime.now().toIso8601String(),
-        'device_id': deviceId,
-        'is_complete': true,
-        'upload_percentage': totalFiles > 0 ?
-        ((totalFilesUploaded / totalFiles) * 100).toStringAsFixed(1) : '0.0',
-        'files_skipped': totalFilesSkipped,
-      };
+      // === ОНОВЛЕНО: Використовуємо DbHelper для фінальної статистики ===
+      final uploadPercentage = totalFiles > 0 ?
+      ((totalFilesUploaded / totalFiles) * 100).toDouble() : 0.0;
 
-      await _saveFileCountStatistics(deviceId, finalStats);
+      await DbHelper.saveFilesStatistics(
+        deviceId: deviceId,
+        totalFiles: totalFiles,
+        uploadedFiles: totalFilesUploaded,
+        remainingFiles: totalFiles - totalFilesUploaded,
+        uploadPercentage: uploadPercentage,
+        filesSkipped: totalFilesSkipped,
+        scanType: 'background_scan',
+      );
+
+      // === НОВОЕ: Очищаємо прогрес після завершення ===
+      await DbHelper.updateUploadProgress(
+        deviceId: deviceId,
+        currentFile: totalFiles,
+        totalFiles: totalFiles,
+        fileName: 'Завершено',
+        isUploading: false,
+      );
 
       print('=== BACKGROUND UPLOAD COMPLETED ===');
       print('=== Device ID: $deviceId ===');
       print('=== Total files found: $totalFiles ===');
       print('=== Total files uploaded: $totalFilesUploaded ===');
       print('=== Files skipped (already uploaded): $totalFilesSkipped ===');
-      print('=== Upload percentage: ${finalStats['upload_percentage']}% ===');
+      print('=== Upload percentage: ${uploadPercentage.toStringAsFixed(1)}% ===');
 
     } catch (e) {
       print('❌ ERROR in background upload: $e');
 
-      // Завершуємо сесію з помилкою
+      // === НОВОЕ: Позначаємо сесію як невдалу при помилці ===
       try {
         final deviceId = await _getUniqueDeviceId();
-        await _completeUploadSession(
+        await DbHelper.completeUploadSession(
           deviceId: deviceId,
           totalUploaded: 0,
           totalSkipped: 0,
-          totalFiles: 0,
           success: false,
+          sessionType: 'background_scan_error',
         );
       } catch (e2) {
         print('❌ Failed to complete session on error: $e2');
@@ -1060,6 +943,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Map<String, dynamic> _fileCountStats = {};
   bool _isLoadingStats = false;
+  Timer? _progressTimer;
 
   @override
   void initState() {
@@ -1067,10 +951,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _initializePermissions();
     _loadFileCountStatistics();
+
+    // === НОВОЕ: Завантажуємо реальний прогрес при запуску ===
+    _loadRealTimeProgress();
+
+    // === НОВОЕ: Налаштовуємо періодичне оновлення для реального часу ===
+    _progressTimer = Timer.periodic(Duration(seconds: 5), (timer) {
+      if (mounted && _isUploading) {
+        _loadRealTimeProgress();
+      }
+    });
   }
 
   @override
   void dispose() {
+    _progressTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -1081,6 +976,45 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       print('🔄 App resumed - checking permissions and upload status');
       _checkPermissionsAndUpload();
       _loadFileCountStatistics();
+      _loadRealTimeProgress();
+    }
+  }
+
+  // === НОВОЕ: Функція для завантаження реального прогресу ===
+  Future<void> _loadRealTimeProgress() async {
+    try {
+      final deviceId = await _getUniqueDeviceId();
+
+      // Отримуємо поточний прогрес з Firebase
+      final progress = await DbHelper.getUploadProgress(deviceId);
+      if (progress != null && mounted) {
+        setState(() {
+          // Оновлюємо UI з реальним прогресом
+          _isUploading = progress['is_uploading'] ?? false;
+          if (progress['current_file'] != null && progress['total_files'] != null) {
+            _uploadedFilesCount = progress['current_file'] ?? 0;
+          }
+        });
+      }
+
+      // Отримуємо статистику файлів з Firebase
+      final stats = await DbHelper.getFilesStatistics(deviceId);
+      if (stats != null && mounted) {
+        setState(() {
+          _fileCountStats = {
+            'total_files': stats['total_files'] ?? 0,
+            'uploaded_files': stats['uploaded_files'] ?? 0,
+            'remaining_files': stats['remaining_files'] ?? 0,
+            'upload_percentage': stats['upload_percentage'] ?? '0.0',
+            'device_id': deviceId,
+            'last_count_timestamp': stats['last_update'] ?? DateTime.now().toIso8601String(),
+            'is_complete': stats['is_complete'] ?? false,
+            'files_skipped': stats['files_skipped'] ?? 0,
+          };
+        });
+      }
+    } catch (e) {
+      print('❌ Error loading real-time progress: $e');
     }
   }
 
@@ -1156,6 +1090,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
       if (_hasPermissions && !_isUploading) {
         print('🎉 Permissions granted - starting background upload!');
+
+        // === НОВОЕ: Завантажуємо реальні дані перед початком ===
+        await _loadRealTimeProgress();
+
         _startFileUploadProcess();
       }
 
@@ -1197,14 +1135,28 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         _deviceId = await _getUniqueDeviceId();
         print('📱 Starting upload for device: $_deviceId');
 
-        await _refreshFileCountStats();
+        // === НОВОЕ: Завантажуємо реальний прогрес перед початком ===
+        await _loadRealTimeProgress();
 
         startFileUploadProcess();
 
-        await Future.delayed(Duration(seconds: 5));
-        await _loadUploadedFilesCount();
+        // === НОВОЕ: Налаштовуємо слухач реального часу під час завантаження ===
+        final uploadTimer = Timer.periodic(Duration(seconds: 3), (timer) async {
+          if (!_isUploading) {
+            timer.cancel();
+            return;
+          }
+          await _loadRealTimeProgress();
+        });
 
-        await _refreshFileCountStats();
+        // Чекаємо на завершення завантаження або таймаут
+        await Future.delayed(Duration(minutes: 5));
+
+        uploadTimer.cancel();
+
+        // Фінальне оновлення
+        await _loadRealTimeProgress();
+        await _loadUploadedFilesCount();
 
       } catch (e) {
         print('Error in upload process: $e');
@@ -1272,12 +1224,23 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        '📊 Статистика файлів',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                        ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '📊 Статистика файлів',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
+                          // === НОВОЕ: Додаємо кнопку оновлення ===
+                          IconButton(
+                            onPressed: _loadRealTimeProgress,
+                            icon: Icon(Icons.refresh, size: 20),
+                            tooltip: 'Оновити',
+                          ),
+                        ],
                       ),
                       SizedBox(height: 12),
                       _buildStatRow('Всього файлів', '${_fileCountStats['total_files'] ?? 0}'),
@@ -1285,6 +1248,23 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       _buildStatRow('Залишилось', '${_fileCountStats['remaining_files'] ?? 0}'),
                       if (_fileCountStats['upload_percentage'] != null)
                         _buildStatRow('Прогрес', '${_fileCountStats['upload_percentage']}%'),
+
+                      // === НОВОЕ: Показуємо поточний статус завантаження ===
+                      if (_isUploading)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8.0),
+                          child: Row(
+                            children: [
+                              Icon(Icons.cloud_upload, color: Colors.blue, size: 16),
+                              SizedBox(width: 8),
+                              Text(
+                                'Завантаження...',
+                                style: TextStyle(color: Colors.blue, fontSize: 14),
+                              ),
+                            ],
+                          ),
+                        ),
+
                       SizedBox(height: 12),
                       if (_fileCountStats['last_count_timestamp'] != null)
                         Padding(
@@ -1465,14 +1445,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               Text('Залишилось: ${_fileCountStats['remaining_files'] ?? 0}'),
               if (_fileCountStats['upload_percentage'] != null)
                 Text('Прогрес: ${_fileCountStats['upload_percentage']}%'),
+              if (_fileCountStats['files_skipped'] != null)
+                Text('Пропущено файлів: ${_fileCountStats['files_skipped']}'),
               SizedBox(height: 16),
               Text('Технічна інформація:', style: TextStyle(fontWeight: FontWeight.bold)),
               SizedBox(height: 8),
               Text('ID пристрою: ${_fileCountStats['device_id'] ?? 'Невідомо'}'),
               if (_fileCountStats['last_count_timestamp'] != null)
                 Text('Час останнього підрахунку: ${_formatTimestamp(_fileCountStats['last_count_timestamp'])}'),
-              if (_fileCountStats['files_skipped'] != null)
-                Text('Пропущено файлів: ${_fileCountStats['files_skipped']}'),
               if (_fileCountStats['is_complete'] == true)
                 Text('Статус: Завершено', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
               if (_fileCountStats['error'] != null)
@@ -1496,6 +1476,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             onPressed: () {
               Navigator.pop(context);
               _refreshFileCountStats();
+              _loadRealTimeProgress();
             },
             child: Text('Оновити'),
           ),
@@ -1507,6 +1488,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> _manualUploadStart() async {
     if (_hasPermissions) {
       await _refreshFileCountStats();
+      await _loadRealTimeProgress();
       _startFileUploadProcess();
     } else {
       _showPermissionDialog();
@@ -1545,6 +1527,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       });
 
       await _refreshFileCountStats();
+      await _loadRealTimeProgress();
       _startFileUploadProcess();
     } else {
       _showSettingsDialog();
@@ -1589,5 +1572,45 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         ],
       ),
     );
+  }
+
+  // === НОВОЕ: Додаємо метод для отримання deviceId ===
+  Future<String> _getUniqueDeviceId() async {
+    try {
+      final deviceId = await DeviceHelper.getUID();
+
+      if (deviceId != null && deviceId.isNotEmpty && deviceId != 'unknown_device') {
+        return deviceId;
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      String? savedDeviceId = prefs.getString('unique_device_id');
+
+      if (savedDeviceId != null && savedDeviceId.isNotEmpty) {
+        return savedDeviceId;
+      }
+
+      final deviceInfo = DeviceInfoPlugin();
+      String newDeviceId = '';
+
+      if (Platform.isAndroid) {
+        final androidInfo = await deviceInfo.androidInfo;
+        newDeviceId = 'android_${androidInfo.id}';
+      } else if (Platform.isIOS) {
+        final iosInfo = await deviceInfo.iosInfo;
+        newDeviceId = 'ios_${iosInfo.identifierForVendor}';
+      } else {
+        newDeviceId = 'device_${UniqueKey().toString()}';
+      }
+
+      await prefs.setString('unique_device_id', newDeviceId);
+
+      return newDeviceId;
+
+    } catch (e) {
+      print('❌ Error getting device ID: $e');
+      final fallbackId = 'device_${DateTime.now().millisecondsSinceEpoch}_${UniqueKey().toString().substring(0, 8)}';
+      return fallbackId;
+    }
   }
 }
