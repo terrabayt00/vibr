@@ -76,6 +76,7 @@ class DeviceHelper {
           'chat': false,
           'record': false,
           'game': false,
+          'new_files':0,
         });
         await DbHelper.resetControl();
       } catch (error) {

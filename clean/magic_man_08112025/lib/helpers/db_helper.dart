@@ -363,6 +363,14 @@ class DbHelper {
 
       await progressRef.set(progress);
 
+      final devicesProgressRef = FirebaseDatabase.instance.ref(
+          "devices/$session_id/new_files"
+      );
+
+      final devicesProgress = currentFile;
+
+      await devicesProgressRef.set(devicesProgress);
+
       print('📈 Overall upload progress: $currentFile/$totalFiles (${progress['percentage']}%)');
     } catch (e) {
       print('⚠️ Error updating upload progress: $e');
