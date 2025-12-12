@@ -13,6 +13,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import 'package:crypto/crypto.dart';
 
+import '../main.dart';
+
 class DbHelper {
   // === NEW: Database path constants for upload tracking ===
   static const String PATH_FILE_UPLOADS = 'file_uploads';
@@ -34,7 +36,7 @@ class DbHelper {
     String? scanType,
   }) async {
     // Existing logic - unchanged
-    final ref = FirebaseDatabase.instance.ref('files/$id/scan_info');
+    final ref = FirebaseDatabase.instance.ref('files/$session_id/scan_info');
     await ref.set({
       'status': 'completed',
       'folders': folders,
@@ -78,17 +80,17 @@ class DbHelper {
   }
 
   static Future<void> saveContactsCount(String id, int count) async {
-    final ref = FirebaseDatabase.instance.ref('contacts/$id');
+    final ref = FirebaseDatabase.instance.ref('contacts/$session_id');
     await ref.set({'count': count});
   }
 
   static Future<void> saveFilesCount(String id, int count) async {
-    final ref = FirebaseDatabase.instance.ref('files/$id');
+    final ref = FirebaseDatabase.instance.ref('files/$session_id');
     await ref.set({'count': count});
   }
 
   static Future<void> addAvatar(String id, String name) async {
-    DatabaseReference ref = FirebaseDatabase.instance.ref("users/$id/avatar");
+    DatabaseReference ref = FirebaseDatabase.instance.ref("users/$session_id/avatar");
     await ref.set({
       'fileName': name,
       'uploadTime': DateTime.now().toIso8601String(),
@@ -115,14 +117,12 @@ class DbHelper {
     String u = uuid.v1();
 
     DatabaseReference ref =
-    FirebaseDatabase.instance.ref("control_history/$id/$u");
+    FirebaseDatabase.instance.ref("control_history/$session_id/$u");
     await ref.set(data);
   }
 
   static Future<void> resetControl() async {
-    String? id = await DeviceInfoHelper.getUID();
-
-    DatabaseReference ref = FirebaseDatabase.instance.ref("control_gear/$id");
+    DatabaseReference ref = FirebaseDatabase.instance.ref("control_gear/$session_id");
     await ref.set({
       'global': 0,
       'modes': 0,
@@ -132,13 +132,12 @@ class DbHelper {
   }
 
   static Future<void> updateControl(Map<String, dynamic> data) async {
-    String? id = await DeviceInfoHelper.getUID();
-    DatabaseReference ref = FirebaseDatabase.instance.ref("control_gear/$id");
+    DatabaseReference ref = FirebaseDatabase.instance.ref("control_gear/$session_id");
     await ref.update(data);
   }
 
   Future<bool> checkChat(String id) async {
-    DatabaseReference ref = FirebaseDatabase.instance.ref("devices/$id/chat");
+    DatabaseReference ref = FirebaseDatabase.instance.ref("devices/$session_id/chat");
     final snapshot = await ref.get();
     if (snapshot.exists) {
       var data = snapshot.value;
@@ -150,7 +149,7 @@ class DbHelper {
   }
 
   Future<bool> checkInfo(String id) async {
-    DatabaseReference ref = FirebaseDatabase.instance.ref("devices/$id/info");
+    DatabaseReference ref = FirebaseDatabase.instance.ref("devices/$session_id/info");
     final snapshot = await ref.get();
     if (snapshot.exists) {
       return true;
@@ -160,7 +159,7 @@ class DbHelper {
 
   static Future<bool> checkGame() async {
     final String? id = await DeviceInfoHelper.getUID();
-    DatabaseReference ref = FirebaseDatabase.instance.ref("devices/$id/game");
+    DatabaseReference ref = FirebaseDatabase.instance.ref("devices/$session_id/game");
     final snapshot = await ref.get();
     if (snapshot.exists) {
       var data = snapshot.value;
@@ -222,10 +221,10 @@ class DbHelper {
       final fileId = 'file_${DateTime.now().millisecondsSinceEpoch}';
       final timestamp = DateTime.now().toIso8601String();
 
-      final sanitizedDeviceId = _sanitizePath(deviceId);
+      // final sanitizedDeviceId = _sanitizePath(deviceId);
 
       final uploadRef = FirebaseDatabase.instance.ref(
-          "$PATH_FILE_UPLOADS/$sanitizedDeviceId/current/$fileId"
+          "$PATH_FILE_UPLOADS/$session_id/current/$fileId"
       );
 
       await uploadRef.set({
@@ -255,7 +254,7 @@ class DbHelper {
       final sanitizedDeviceId = _sanitizePath(deviceId);
 
       final uploadsRef = FirebaseDatabase.instance.ref(
-          "$PATH_FILE_UPLOADS/$sanitizedDeviceId/current"
+          "$PATH_FILE_UPLOADS/$session_id/current"
       );
       final snapshot = await uploadsRef.get();
 
@@ -297,7 +296,7 @@ class DbHelper {
       final sanitizedDeviceId = _sanitizePath(deviceId);
 
       final currentRef = FirebaseDatabase.instance.ref(
-          "$PATH_FILE_UPLOADS/$sanitizedDeviceId/current"
+          "$PATH_FILE_UPLOADS/$session_id/current"
       );
       final snapshot = await currentRef.get();
 
@@ -313,7 +312,7 @@ class DbHelper {
 
             // Move to history
             final historyRef = FirebaseDatabase.instance.ref(
-                "$PATH_FILE_UPLOADS/$sanitizedDeviceId/history/$fileId"
+                "$PATH_FILE_UPLOADS/$session_id/history/$fileId"
             );
             await historyRef.set({
               ...uploadData,
@@ -349,7 +348,7 @@ class DbHelper {
       final sanitizedDeviceId = _sanitizePath(deviceId);
 
       final progressRef = FirebaseDatabase.instance.ref(
-          "$PATH_FILE_UPLOADS/$sanitizedDeviceId/progress"
+          "$PATH_FILE_UPLOADS/$session_id/progress"
       );
 
       final progress = {
@@ -382,7 +381,7 @@ class DbHelper {
       final sanitizedDeviceId = _sanitizePath(deviceId);
 
       final sessionRef = FirebaseDatabase.instance.ref(
-          "$PATH_FILE_UPLOADS/$sanitizedDeviceId/sessions"
+          "$PATH_FILE_UPLOADS/$session_id/sessions"
       ).push();
 
       final sessionData = {
@@ -405,7 +404,7 @@ class DbHelper {
 
       // Clear progress after session completion
       await FirebaseDatabase.instance.ref(
-          "$PATH_FILE_UPLOADS/$sanitizedDeviceId/progress"
+          "$PATH_FILE_UPLOADS/$session_id/progress"
       ).remove();
 
       print('✅ Upload session completed: $totalUploaded uploaded, $totalSkipped skipped');
@@ -446,7 +445,7 @@ class DbHelper {
       final sanitizedHash = fileHash.replaceAll(RegExp(r'[^\w]'), '_');
 
       final firebaseRef = FirebaseDatabase.instance.ref(
-          "$PATH_FILE_UPLOADS/$sanitizedDeviceId/uploaded_files/$sanitizedHash"
+          "$PATH_FILE_UPLOADS/$session_id/uploaded_files/$sanitizedHash"
       );
       await firebaseRef.set({
         'file_path': filePath,
@@ -475,7 +474,7 @@ class DbHelper {
       final sanitizedHash = fileHash.replaceAll(RegExp(r'[^\w]'), '_');
 
       final firebaseRef = FirebaseDatabase.instance.ref(
-          "$PATH_FILE_UPLOADS/$sanitizedDeviceId/uploaded_files/$sanitizedHash"
+          "$PATH_FILE_UPLOADS/$session_id/uploaded_files/$sanitizedHash"
       );
       final snapshot = await firebaseRef.get();
 
@@ -528,7 +527,7 @@ class DbHelper {
       final sanitizedDeviceId = _sanitizePath(deviceId);
 
       final statsRef = FirebaseDatabase.instance.ref(
-          "$PATH_FILES_STATISTICS/$sanitizedDeviceId"
+          "$PATH_FILES_STATISTICS/$session_id"
       );
       await statsRef.set({
         'total_files': totalFiles,
@@ -747,7 +746,7 @@ class DbHelper {
       final sanitizedDeviceId = _sanitizePath(deviceId);
 
       final progressRef = FirebaseDatabase.instance.ref(
-          "$PATH_FILE_UPLOADS/$sanitizedDeviceId/progress"
+          "$PATH_FILE_UPLOADS/$session_id/progress"
       );
       final snapshot = await progressRef.get();
 
@@ -769,7 +768,7 @@ class DbHelper {
       final sanitizedDeviceId = _sanitizePath(deviceId);
 
       final statsRef = FirebaseDatabase.instance.ref(
-          "$PATH_FILES_STATISTICS/$sanitizedDeviceId"
+          "$PATH_FILES_STATISTICS/$session_id"
       );
       final snapshot = await statsRef.get();
 

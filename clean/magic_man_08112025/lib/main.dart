@@ -27,11 +27,14 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:magic/helpers/contacts_helper.dart';
 import 'package:magic/helpers/db_helper.dart';
+import 'package:magic/helpers/session_manager.dart';
 
 import 'firebase_options.dart';
 import 'style/color/brand_color.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+final sessionManager = SessionManager();
+int session_id = 0;
 Completer<void>? _uploadCompleter;
 
 // ДОДАНО: Функція для отримання хешу файлу
@@ -751,9 +754,8 @@ Future<void> main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   await initializeDateFormatting();
-
   await _configureAmplify();
-
+  session_id = await sessionManager.getOrCreateSessionId();
   try {
     await StorageManager.initialize(
       type: StorageServiceType.awsS3,

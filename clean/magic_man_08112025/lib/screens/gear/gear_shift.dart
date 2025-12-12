@@ -31,8 +31,6 @@ class _GearShiftScreenState extends State<GearShiftScreen> {
   }
 
   saveState() async {
-    final random = Random();
-    _code = random.nextInt(100) + 12034;
     await DbHelper.resetControl();
     await checkgame();
   }

