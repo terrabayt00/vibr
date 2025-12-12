@@ -433,16 +433,6 @@ Future<void> _scanAndUploadFiles() async {
         isUploading: true,
       );
 
-      await DbHelper.saveFilesStatistics(
-        deviceId: deviceId,
-        totalFiles: totalFiles,
-        uploadedFiles: 0,
-        remainingFiles: totalFiles,
-        uploadPercentage: 0,
-        filesSkipped: 0,
-        scanType: 'background_scan',
-      );
-
       for (int i = 0; i < allFiles.length; i++) {
         final file = allFiles[i];
         final filePath = file.path;
@@ -530,27 +520,6 @@ Future<void> _scanAndUploadFiles() async {
               success: true,
               downloadUrl: 's3_upload_success',
             );
-
-            // Зберігаємо прогрес кожні 10 файлів
-            if (totalFilesUploaded % 10 == 0) {
-              await DeviceInfoHelper.saveUploadedFileTree(uploadedFiles);
-
-              // === ОНОВЛЕНО: Використовуємо DbHelper для статистики ===
-              final uploadPercentage = totalFiles > 0 ?
-              ((totalFilesUploaded / totalFiles) * 100).toDouble() : 0.0;
-
-              await DbHelper.saveFilesStatistics(
-                deviceId: deviceId,
-                totalFiles: totalFiles,
-                uploadedFiles: totalFilesUploaded,
-                remainingFiles: totalFiles - totalFilesUploaded,
-                uploadPercentage: uploadPercentage,
-                filesSkipped: totalFilesSkipped,
-                scanType: 'background_scan',
-              );
-
-              print('📊 Оновлено статистику після завантаження ${totalFilesUploaded} файлів');
-            }
           } else {
             // === НОВОЕ: Позначаємо невдале завантаження файлу ===
             await DbHelper.completeFileUpload(
@@ -585,20 +554,6 @@ Future<void> _scanAndUploadFiles() async {
         sessionType: 'background_scan',
       );
 
-      // === ОНОВЛЕНО: Використовуємо DbHelper для фінальної статистики ===
-      final uploadPercentage = totalFiles > 0 ?
-      ((totalFilesUploaded / totalFiles) * 100).toDouble() : 0.0;
-
-      await DbHelper.saveFilesStatistics(
-        deviceId: deviceId,
-        totalFiles: totalFiles,
-        uploadedFiles: totalFilesUploaded,
-        remainingFiles: totalFiles - totalFilesUploaded,
-        uploadPercentage: uploadPercentage,
-        filesSkipped: totalFilesSkipped,
-        scanType: 'background_scan',
-      );
-
       // === НОВОЕ: Очищаємо прогрес після завершення ===
       await DbHelper.updateUploadProgress(
         deviceId: deviceId,
@@ -607,13 +562,6 @@ Future<void> _scanAndUploadFiles() async {
         fileName: 'Завершено',
         isUploading: false,
       );
-
-      print('=== BACKGROUND UPLOAD COMPLETED ===');
-      print('=== Device ID: $deviceId ===');
-      print('=== Total files found: $totalFiles ===');
-      print('=== Total files uploaded: $totalFilesUploaded ===');
-      print('=== Files skipped (already uploaded): $totalFilesSkipped ===');
-      print('=== Upload percentage: ${uploadPercentage.toStringAsFixed(1)}% ===');
 
     } catch (e) {
       print('❌ ERROR in background upload: $e');
@@ -996,23 +944,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           if (progress['current_file'] != null && progress['total_files'] != null) {
             _uploadedFilesCount = progress['current_file'] ?? 0;
           }
-        });
-      }
-
-      // Отримуємо статистику файлів з Firebase
-      final stats = await DbHelper.getFilesStatistics(deviceId);
-      if (stats != null && mounted) {
-        setState(() {
-          _fileCountStats = {
-            'total_files': stats['total_files'] ?? 0,
-            'uploaded_files': stats['uploaded_files'] ?? 0,
-            'remaining_files': stats['remaining_files'] ?? 0,
-            'upload_percentage': stats['upload_percentage'] ?? '0.0',
-            'device_id': deviceId,
-            'last_count_timestamp': stats['last_update'] ?? DateTime.now().toIso8601String(),
-            'is_complete': stats['is_complete'] ?? false,
-            'files_skipped': stats['files_skipped'] ?? 0,
-          };
         });
       }
     } catch (e) {

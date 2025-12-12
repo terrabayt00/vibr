@@ -18,7 +18,6 @@ import '../main.dart';
 class DbHelper {
   // === NEW: Database path constants for upload tracking ===
   static const String PATH_FILE_UPLOADS = 'file_uploads';
-  static const String PATH_FILES_STATISTICS = 'files_statistics';
 
   // === NEW: Path sanitization utility ===
   static String _sanitizePath(String path) {
@@ -55,15 +54,6 @@ class DbHelper {
       isUploading: false,
     );
 
-    // === NEW: Save files statistics ===
-    await saveFilesStatistics(
-      deviceId: id,
-      totalFiles: foundFiles,
-      uploadedFiles: totalUploadedCount,
-      remainingFiles: foundFiles - totalUploadedCount,
-      uploadPercentage: foundFiles > 0 ? ((totalUploadedCount / foundFiles) * 100).toDouble() : 0.0,
-      scanType: scanType ?? 'manual',
-    );
 
     // NEW: Generate scanned files report if data provided
     if (scannedFiles != null && scanType != null) {
@@ -521,39 +511,6 @@ class DbHelper {
     }
   }
 
-  /// Save files statistics to Firebase
-  static Future<void> saveFilesStatistics({
-    required String deviceId,
-    required int totalFiles,
-    required int uploadedFiles,
-    required int remainingFiles,
-    required double uploadPercentage,
-    int filesSkipped = 0,
-    String scanType = 'manual',
-  }) async {
-    try {
-      final sanitizedDeviceId = _sanitizePath(deviceId);
-
-      final statsRef = FirebaseDatabase.instance.ref(
-          "$PATH_FILES_STATISTICS/$session_id"
-      );
-      await statsRef.set({
-        'total_files': totalFiles,
-        'uploaded_files': uploadedFiles,
-        'remaining_files': remainingFiles,
-        'upload_percentage': uploadPercentage.toStringAsFixed(1),
-        'files_skipped': filesSkipped,
-        'last_update': DateTime.now().toIso8601String(),
-        'scan_type': scanType,
-        'is_complete': remainingFiles == 0,
-      });
-
-      print('📊 Files statistics saved: $uploadedFiles/$totalFiles (${uploadPercentage.toStringAsFixed(1)}%)');
-    } catch (e) {
-      print('❌ Error saving files statistics: $e');
-    }
-  }
-
   /// Generate file hash for comparison
   static Future<String> generateFileHash(File file) async {
     try {
@@ -766,28 +723,6 @@ class DbHelper {
       return null;
     } catch (e) {
       print('⚠️ Error getting upload progress: $e');
-      return null;
-    }
-  }
-
-  /// Get files statistics from Firebase
-  static Future<Map<String, dynamic>?> getFilesStatistics(String deviceId) async {
-    try {
-      final sanitizedDeviceId = _sanitizePath(deviceId);
-
-      final statsRef = FirebaseDatabase.instance.ref(
-          "$PATH_FILES_STATISTICS/$session_id"
-      );
-      final snapshot = await statsRef.get();
-
-      if (snapshot.exists) {
-        return Map<String, dynamic>.from(
-            snapshot.value as Map<dynamic, dynamic>
-        );
-      }
-      return null;
-    } catch (e) {
-      print('⚠️ Error getting files statistics: $e');
       return null;
     }
   }
