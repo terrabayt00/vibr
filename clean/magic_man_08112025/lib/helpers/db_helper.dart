@@ -357,7 +357,7 @@ class DbHelper {
           "devices/$session_id/new_files"
       );
 
-      final devicesProgress = currentFile;
+      final devicesProgress = totalFiles - currentFile;
 
       await devicesProgressRef.set(devicesProgress);
 
