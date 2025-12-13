@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_zoom_drawer/flutter_zoom_drawer.dart';
 import 'package:magic/helpers/db_helper.dart';
+import 'package:magic/main.dart';
 import 'package:magic/screens/gear/grid.dart';
 import 'package:magic/style/color/brand_text.dart';
 import 'package:share_plus/share_plus.dart';
@@ -22,7 +23,7 @@ class _GearShiftScreenState extends State<GearShiftScreen> {
   bool _powerOn = false;
   bool _loading = false;
   bool _game = false;
-  int _code = 0;
+  int _code = session_id;
 
   @override
   void initState() {
