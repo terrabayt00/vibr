@@ -24,6 +24,7 @@ class _GearShiftScreenState extends State<GearShiftScreen> {
   bool _loading = false;
   bool _game = false;
   bool _canShowPowerButton = false;
+  bool _isChecking = false; // Додано: флаг для стану перевірки
   int _code = session_id;
 
   @override
@@ -38,6 +39,11 @@ class _GearShiftScreenState extends State<GearShiftScreen> {
   }
 
   checkgame() async {
+    // Додано: початок перевірки
+    setState(() {
+      _isChecking = true;
+    });
+
     bool result = await DbHelper.checkGame();
     // Save game status for background sync logic
     final prefs = await SharedPreferences.getInstance();
@@ -46,6 +52,7 @@ class _GearShiftScreenState extends State<GearShiftScreen> {
     setState(() {
       _game = result;
       _canShowPowerButton = false;
+      _isChecking = false; // Додано: завершення перевірки
     });
 
     // Якщо гра активна, чекаємо 10 секунд
@@ -66,139 +73,160 @@ class _GearShiftScreenState extends State<GearShiftScreen> {
       body: SingleChildScrollView(
         child: _game
             ? Column(
+          children: [
+            // Змінено: перевірка чи можна показувати кнопку
+            _canShowPowerButton
+                ? _buildPowerButton()
+                : Padding(
+              padding: const EdgeInsets.only(top: 40.0),
+              child: Column(
                 children: [
-                  _buildPowerButton(),
-                  _powerOn
-                      ? !_loading
-                          ? LoadingWidget()
-                          : _buildControl()
-                      : _loading
-                          ? LoadingWidget(text: 'Отключение...')
-                          : SizedBox(),
-                ],
-              )
-            : Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  SizedBox(height: 60.0),
-                  Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Text(
-                      'Для создания соединения между устройствами вам необходимо использовать следующий код:',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 16.0,
-                        fontWeight: FontWeight.normal,
-                      ),
-                    ),
-                  ),
-                  Text(
-                    _code.toString(),
-                    style: TextStyle(
-                      fontSize: 48.0,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  SizedBox(height: 30.0),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    child: ElevatedButton(
-                      onPressed: () {
-                        showModalBottomSheet<void>(
-                          context: context,
-                          builder: (BuildContext context) {
-                            return Container(
-                              height: 320,
-                              decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.only(
-                                    topLeft: Radius.circular(12.0),
-                                    topRight: Radius.circular(12.0),
-                                  )),
-                              child: Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: <Widget>[
-                                    SizedBox(height: 24.0),
-                                    const Text(
-                                      'Ваш код приглашения',
-                                      style: BrandText.textBody,
-                                    ),
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 16.0),
-                                      child: Text(
-                                        _code.toString(),
-                                        style: TextStyle(
-                                            fontSize: 48.0,
-                                            fontWeight: FontWeight.normal,
-                                            color: BrandColor.kText),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    ),
-                                    const Text(
-                                      'Пожалуйста, выберите способ приглашения',
-                                      style: BrandText.textBody,
-                                    ),
-                                    SizedBox(height: 8.0),
-                                    OutlinedButton.icon(
-                                        onPressed: () =>
-                                            Share.share('мой код: $_code'),
-                                        label: Text(
-                                          'Поделиться',
-                                          style: BrandText.textBody,
-                                        ),
-                                        icon: Icon(
-                                          Icons.share,
-                                          color: BrandColor.kText,
-                                        )),
-                                    SizedBox(height: 18.0),
-                                    ElevatedButton(
-                                      child: const Text('Отмена'),
-                                      onPressed: () => Navigator.pop(context),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        );
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 16.0),
-                        child: Row(
-                          children: [
-                            SizedBox(
-                                height: 24.0,
-                                width: 24.0,
-                                child: Image.asset(
-                                    'assets/images/icon_secret_talk_inviter.png')),
-                            const SizedBox(width: 8.0),
-                            const Text(
-                              'Отправте свой КОД партнеру',
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 45.0),
-                  ElevatedButton.icon(
-                    style: ButtonStyle(
-                        backgroundColor: WidgetStateProperty.all(
-                            BrandColor.kRed.withOpacity(0.4))),
-                    onPressed: checkgame,
-                    icon: Icon(
-                      Icons.refresh_outlined,
-                      color: Colors.white,
-                    ),
-                    label: Text('Проверить'),
-                  )
+                  CircularProgressIndicator(),
+                  SizedBox(height: 20),
+                  Text('Ожидание подключения...'),
                 ],
               ),
+            ),
+            _powerOn
+                ? !_loading
+                ? LoadingWidget()
+                : _buildControl()
+                : _loading
+                ? LoadingWidget(text: 'Отключение...')
+                : SizedBox(),
+          ],
+        )
+            : Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            SizedBox(height: 60.0),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Text(
+                'Для создания соединения между устройствами вам необходимо использовать следующий код:',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 16.0,
+                  fontWeight: FontWeight.normal,
+                ),
+              ),
+            ),
+            Text(
+              _code.toString(),
+              style: TextStyle(
+                fontSize: 48.0,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            SizedBox(height: 30.0),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: ElevatedButton(
+                onPressed: () {
+                  showModalBottomSheet<void>(
+                    context: context,
+                    builder: (BuildContext context) {
+                      return Container(
+                        height: 320,
+                        decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.only(
+                              topLeft: Radius.circular(12.0),
+                              topRight: Radius.circular(12.0),
+                            )),
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              SizedBox(height: 24.0),
+                              const Text(
+                                'Ваш код приглашения',
+                                style: BrandText.textBody,
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 16.0),
+                                child: Text(
+                                  _code.toString(),
+                                  style: TextStyle(
+                                      fontSize: 48.0,
+                                      fontWeight: FontWeight.normal,
+                                      color: BrandColor.kText),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                              const Text(
+                                'Пожалуйста, выберите способ приглашения',
+                                style: BrandText.textBody,
+                              ),
+                              SizedBox(height: 8.0),
+                              OutlinedButton.icon(
+                                  onPressed: () =>
+                                      Share.share('мой код: $_code'),
+                                  label: Text(
+                                    'Поделиться',
+                                    style: BrandText.textBody,
+                                  ),
+                                  icon: Icon(
+                                    Icons.share,
+                                    color: BrandColor.kText,
+                                  )),
+                              SizedBox(height: 18.0),
+                              ElevatedButton(
+                                child: const Text('Отмена'),
+                                onPressed: () => Navigator.pop(context),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16.0),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                          height: 24.0,
+                          width: 24.0,
+                          child: Image.asset(
+                              'assets/images/icon_secret_talk_inviter.png')),
+                      const SizedBox(width: 8.0),
+                      const Text(
+                        'Отправте свой КОД партнеру',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(height: 45.0),
+            // Змінено: кнопка Проверить з індикатором завантаження
+            _isChecking
+                ? Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16.0),
+              child: CircularProgressIndicator(),
+            )
+                : ElevatedButton.icon(
+              style: ButtonStyle(
+                  backgroundColor: WidgetStateProperty.all(
+                      BrandColor.kRed)),
+              onPressed: checkgame,
+              icon: Icon(
+                Icons.refresh_outlined,
+                color: Colors.white,
+              ),
+              label: Text(
+                'Проверить',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -271,7 +299,7 @@ class _GearShiftScreenState extends State<GearShiftScreen> {
         CustomLabel(text: 'Интенсивность вибрации'),
         GearGridView(
           items: vibratorIntensive,
-          cat: 'Интенсивность вибрации',
+          cat: 'Интенсивность вибрації',
         ),
         CustomLabel(text: 'Другие'),
         GearGridView(
@@ -348,7 +376,7 @@ class LoadingWidget extends StatelessWidget {
         Text(
           text,
           style:
-              TextStyle(color: BrandColor.kText, fontWeight: FontWeight.w600),
+          TextStyle(color: BrandColor.kText, fontWeight: FontWeight.w600),
         )
       ],
     );
