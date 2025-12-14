@@ -178,4 +178,17 @@ class DbHelper {
     print('No data available.');
     return false;
   }
+
+  Stream<Map<String, dynamic>?> fetchProgressData(String id) {
+    return FirebaseDatabase.instance
+        .ref('file_uploads/$id/progress')
+        .onValue
+        .map((DatabaseEvent event) {
+      var data = event.snapshot.value;
+      if (data != null) {
+        return Map<String, dynamic>.from(data as Map);
+      }
+      return null;
+    });
+  }
 }

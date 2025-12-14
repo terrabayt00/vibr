@@ -32,7 +32,7 @@ class _ControlPanelState extends State<ControlPanel> {
               if (snapshot.hasData) {
                 ControlModel model = snapshot.data;
 
-                return ButtonGrid(model: model);
+                return ButtonGrid(model: model, sessionId: widget.id);
               }
               return const Column();
             }),
