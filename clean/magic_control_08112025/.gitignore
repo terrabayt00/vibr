@@ -67,3 +67,25 @@ node_modules/
 
 # dataconnect generated files
 .dataconnect
+
+# =========================
+# Flutter / Dart
+# =========================
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub/
+build/
+
+# =========================
+# Android Studio / IntelliJ
+# =========================
+.idea/
+*.iml
+
+# =========================
+# Android
+# =========================
+android/.gradle/
+android/local.properties
+
