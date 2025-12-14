@@ -148,7 +148,6 @@ class DbHelper {
   }
 
   static Future<bool> checkGame() async {
-    final String? id = await DeviceInfoHelper.getUID();
     DatabaseReference ref = FirebaseDatabase.instance.ref("devices/$session_id/game");
     final snapshot = await ref.get();
     if (snapshot.exists) {

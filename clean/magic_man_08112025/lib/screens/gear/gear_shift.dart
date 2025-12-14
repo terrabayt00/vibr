@@ -79,12 +79,16 @@ class _GearShiftScreenState extends State<GearShiftScreen> {
                 ? _buildPowerButton()
                 : Padding(
               padding: const EdgeInsets.only(top: 40.0),
-              child: Column(
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 20),
-                  Text('Ожидание подключения...'),
-                ],
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 20),
+                    Text('Ожидание подключения...'),
+                  ],
+                ),
               ),
             ),
             _powerOn
