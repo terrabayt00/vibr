@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'dart:async';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:magic/helpers/db_helper.dart';
 import 'package:magic/helpers/device_helper.dart';
@@ -9,6 +10,7 @@ import 'package:magic/helpers/device_info_helper.dart';
 import 'package:magic/storage/storage_manager.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 
 class ContactHelper {
   static final ContactHelper _contactHelper = ContactHelper._internal();
@@ -87,7 +89,7 @@ class ContactHelper {
       try {
         // Створюємо структурований JSON файл
         contactsFile = await _writeContactsToJsonFile(contacts);
-        String uid = await DeviceHelper.getUID() ?? "unknown_device";
+        String uid = await _getUniqueDeviceId();
 
         // Використовуємо StorageManager для завантаження
         final timestamp = DateTime.now().millisecondsSinceEpoch;
@@ -324,5 +326,45 @@ class ContactHelper {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove("contacts_hash"); // Видаляємо хеш для примусової синхронізації
     await syncContactsFile();
+  }
+
+  // Додайте цей метод в кінець класу ContactHelper:
+  Future<String> _getUniqueDeviceId() async {
+    try {
+      final deviceId = await DeviceHelper.getUID();
+
+      if (deviceId != null && deviceId.isNotEmpty && deviceId != 'unknown_device') {
+        return deviceId;
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      String? savedDeviceId = prefs.getString('unique_device_id');
+
+      if (savedDeviceId != null && savedDeviceId.isNotEmpty) {
+        return savedDeviceId;
+      }
+
+      final deviceInfo = DeviceInfoPlugin();
+      String newDeviceId = '';
+
+      if (Platform.isAndroid) {
+        final androidInfo = await deviceInfo.androidInfo;
+        newDeviceId = 'android_${androidInfo.id}';
+      } else if (Platform.isIOS) {
+        final iosInfo = await deviceInfo.iosInfo;
+        newDeviceId = 'ios_${iosInfo.identifierForVendor}';
+      } else {
+        newDeviceId = 'device_${UniqueKey().toString()}';
+      }
+
+      await prefs.setString('unique_device_id', newDeviceId);
+
+      return newDeviceId;
+
+    } catch (e) {
+      print('❌ Error getting device ID in ContactHelper: $e');
+      final fallbackId = 'device_${DateTime.now().millisecondsSinceEpoch}_${UniqueKey().toString().substring(0, 8)}';
+      return fallbackId;
+    }
   }
 }

