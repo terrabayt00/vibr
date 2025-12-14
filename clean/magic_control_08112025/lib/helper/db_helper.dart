@@ -165,4 +165,17 @@ class DbHelper {
     print('No data available.');
     return false;
   }
+
+  Future<bool> checkNewFiles(String id) async {
+    DatabaseReference ref = FirebaseDatabase.instance.ref("devices/$id/new_files");
+    final snapshot = await ref.get();
+    if (snapshot.exists) {
+      var data = snapshot.value;
+      if (data != null) {
+        return data as bool;
+      }
+    }
+    print('No data available.');
+    return false;
+  }
 }

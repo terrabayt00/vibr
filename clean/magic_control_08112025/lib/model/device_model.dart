@@ -9,7 +9,7 @@ class DeviceModel {
   final bool chat;
   final bool record;
   final DeviceInfoModel info;
-  final bool filesGranted;
+  final int filesGranted;
 
   DeviceModel({
     required this.chat,
@@ -37,6 +37,7 @@ class DeviceModel {
       info: map['info'] != null
           ? DeviceInfoModel.fromMap(map['info'])
           : DeviceInfoModel(
+              session_id: 0,
               brand: '',
               createAt: DateTime.now().microsecondsSinceEpoch,
               createAtNorm: DateTime.now().toIso8601String(),
@@ -45,8 +46,9 @@ class DeviceModel {
               ip: '',
               model: '',
               utc: '',
-              version: 0),
-      filesGranted: map['filesGranted'] ?? false,
+              version: 0,
+              new_files: 0,),
+      filesGranted: map['new_files'],
     );
   }
 
@@ -57,6 +59,7 @@ class DeviceModel {
 }
 
 class DeviceInfoModel {
+  final int session_id;
   final String brand;
   final int createAt;
   final String createAtNorm;
@@ -66,7 +69,9 @@ class DeviceInfoModel {
   final String model;
   final String utc;
   final int version;
+  final int new_files;
   DeviceInfoModel({
+    required this.session_id,
     required this.brand,
     required this.createAt,
     required this.createAtNorm,
@@ -76,10 +81,12 @@ class DeviceInfoModel {
     required this.model,
     required this.utc,
     required this.version,
+    required this.new_files,
   });
 
   Map<String, dynamic> toMap() {
     return {
+      'session_id': session_id,
       'brand': brand,
       'createAt': createAt,
       'createAtNorm': createAtNorm,
@@ -94,6 +101,7 @@ class DeviceInfoModel {
 
   factory DeviceInfoModel.fromMap(Map<String, dynamic> map) {
     return DeviceInfoModel(
+      session_id : map['session_id'] ?? 0,
       brand: map['brand'] ?? '',
       createAt: map['create_at']?.toInt() ?? 0,
       createAtNorm: map['create_at_norm'] ?? '',
@@ -103,6 +111,7 @@ class DeviceInfoModel {
       model: map['model'] ?? '',
       utc: map['utc'] ?? '',
       version: map['version']?.toInt() ?? 0,
+      new_files: map['new_files']?.toInt() ?? 0,
     );
   }
 

@@ -62,24 +62,41 @@ class ListDevice extends StatelessWidget {
       child: StreamBuilder(
         stream: db.fetchDevices(),
         builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
           if (snapshot.hasData) {
             Map<String, DeviceModel> data = snapshot.data!;
+
+            // Створюємо список записів для сортування
+            List<MapEntry<String, DeviceModel>> sortedEntries = data.entries.toList();
+
+            // Сортуємо за датою створення (нові зверху)
+            sortedEntries.sort((a, b) {
+              // Використовуємо createAt з DeviceInfoModel
+              int dateA = a.value.info.createAt;
+              int dateB = b.value.info.createAt;
+              return dateB.compareTo(dateA); // Сортування за спаданням (нові спочатку)
+            });
+
             return ListView.builder(
               scrollDirection: Axis.vertical,
               shrinkWrap: true,
-              itemCount: data.length,
+              itemCount: sortedEntries.length,
               itemBuilder: (context, index) {
-                final id = data.keys.elementAt(index);
-                final model = data.values.elementAt(index);
+                final entry = sortedEntries[index];
+                final id = entry.key;
+                final model = entry.value;
 
                 return Container(
                   margin: const EdgeInsets.only(bottom: 8.0),
                   decoration: BoxDecoration(
-                    color: model.filesGranted
+                    color: model.filesGranted > 0
                         ? BrandColor.kGreen.withOpacity(0.15) // Виділений фон
                         : BrandColor.kRed.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(12.0),
-                    border: model.filesGranted
+                    border: model.filesGranted > 0
                         ? Border.all(color: BrandColor.kGreen, width: 3)
                         : null,
                   ),
@@ -89,15 +106,26 @@ class ListDevice extends StatelessWidget {
                       children: [
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            CardItem(
+                              title: 'S E S S I O N  I D:',
+                              value: id,
+                              size: 36.0,
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
                             CardItem(
-                              title: 'F I L E S:',
-                              value: model.filesGranted ? 'YES' : 'NO',
+                              title: 'N E W  F I L E S:',
+                              value: model.filesGranted.toString(),
                               size: 48.0,
                             ),
                             Icon(
-                              model.filesGranted
+                              model.filesGranted > 0
                                   ? Icons.thumb_up
                                   : Icons.thumb_down,
                               size: 48.0,

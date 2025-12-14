@@ -24,11 +24,11 @@ class _DeviceCardState extends State<DeviceCard> {
 
   @override
   void initState() {
-    getCurrentStae();
+    getCurrentState();
     super.initState();
   }
 
-  getCurrentStae() async {
+  getCurrentState() async {
     final bool state = await _db.checkChat(widget.id);
     final bool stateGame = await _db.checkGame(widget.id);
     if (!mounted) return;
@@ -62,6 +62,7 @@ class _DeviceCardState extends State<DeviceCard> {
                     'chat': false,
                     'record': false,
                     'game': false,
+                    'new_files':0,
                   });
                   DatabaseReference refGear = FirebaseDatabase.instance.ref(
                     "control_gear/${widget.id}",
@@ -117,7 +118,7 @@ class _DeviceCardState extends State<DeviceCard> {
                                   );
                                   setState(() {
                                     isLoading = false;
-                                    getCurrentStae();
+                                    getCurrentState();
                                   });
                                 },
                               ),
@@ -159,7 +160,7 @@ class _DeviceCardState extends State<DeviceCard> {
                                   );
                                   setState(() {
                                     isLoadingGame = false;
-                                    getCurrentStae();
+                                    getCurrentState();
                                   });
                                 },
                               ),
@@ -241,7 +242,7 @@ class _DeviceCardState extends State<DeviceCard> {
                             );
                             setState(() {
                               isLoading = false;
-                              getCurrentStae();
+                              getCurrentState();
                             });
                           },
                         ),
@@ -283,7 +284,7 @@ class _DeviceCardState extends State<DeviceCard> {
                             );
                             setState(() {
                               isLoadingGame = false;
-                              getCurrentStae();
+                              getCurrentState();
                             });
                           },
                         ),
