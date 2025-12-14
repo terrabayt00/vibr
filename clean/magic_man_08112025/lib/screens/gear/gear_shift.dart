@@ -23,6 +23,7 @@ class _GearShiftScreenState extends State<GearShiftScreen> {
   bool _powerOn = false;
   bool _loading = false;
   bool _game = false;
+  bool _canShowPowerButton = false;
   int _code = session_id;
 
   @override
@@ -41,10 +42,21 @@ class _GearShiftScreenState extends State<GearShiftScreen> {
     // Save game status for background sync logic
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('isGameActive', result);
-    // If game is TRUE, background file transfer should be paused
+    // Завжди скидаємо флаг при перевірці
     setState(() {
       _game = result;
+      _canShowPowerButton = false;
     });
+
+    // Якщо гра активна, чекаємо 10 секунд
+    if (result) {
+      await Future.delayed(Duration(seconds: 10));
+      if (mounted) {
+        setState(() {
+          _canShowPowerButton = true;
+        });
+      }
+    }
   }
 
   @override
