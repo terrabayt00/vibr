@@ -29,6 +29,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? driverPhotoUrl;
   bool _loading = false;
   TextEditingController _controllerUser = TextEditingController();
+  // Додано для редагування ніка
+  TextEditingController _nicknameController = TextEditingController();
+  bool _isEditingNickname = false;
 
   int userNumber = 0;
 
@@ -56,7 +59,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   genUserNumber() async {
     final prefs = await SharedPreferences.getInstance();
     final number = prefs.getInt('user_number');
-    if (number != null) {
+    final customNickname = prefs.getString('custom_nickname'); // Додано
+    if (customNickname != null) {
+      _nicknameController.text = customNickname; // Додано
+    } else if (number != null) {
       setState(() {
         userNumber = number;
       });
@@ -83,6 +89,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
         dropdownvalue = sex;
       });
     }
+  }
+
+  // Додано: збереження кастомного ніка
+  Future<void> _saveCustomNickname() async {
+    if (_nicknameController.text.trim().isNotEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('custom_nickname', _nicknameController.text.trim());
+      setState(() {
+        _isEditingNickname = false;
+      });
+      // Показуємо повідомлення про успіх
+      MessageHelper.show(context, 'Ник успешно изменен');
+    }
+  }
+
+  // Додано: відміна редагування
+  void _cancelNicknameEdit() {
+    setState(() {
+      _isEditingNickname = false;
+      _nicknameController.clear();
+    });
   }
 
   Future<void> addDriverPhotoFlow() async {
@@ -182,6 +209,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _onOkPressed() async {
+    // Якщо в режимі редагування ніка - зберігаємо зміни
+    if (_isEditingNickname) {
+      await _saveCustomNickname();
+      return;
+    }
+
     // Show loading indicator
     setState(() {
       _loading = true;
@@ -209,40 +242,97 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _loading
                 ? Center(child: CircularProgressIndicator())
                 : driverPhotoUrl != null
-                    ? Center(
-                        child: GestureDetector(
-                          onTap: () async => await addDriverPhotoFlow(),
-                          child: CircleAvatar(
-                            radius: 120.0,
-                            backgroundImage: NetworkImage(driverPhotoUrl!),
-                            backgroundColor: Colors.green.shade100,
-                          ),
-                        ),
-                      )
-                    : Row(
-                        children: [
-                          const Text('Аватар',
-                              style: TextStyle(fontSize: 18.0)),
-                          const Spacer(),
-                          GestureDetector(
-                            onTap: () async => await addDriverPhotoFlow(),
-                            child: SizedBox(
-                              width: 48.0,
-                              height: 48.0,
-                              child: Image.asset(
-                                  'assets/images/icon_avatar_default.png'),
-                            ),
-                          ),
-                          const Icon(Icons.keyboard_arrow_right),
-                        ],
-                      ),
+                ? Center(
+              child: GestureDetector(
+                onTap: () async => await addDriverPhotoFlow(),
+                child: CircleAvatar(
+                  radius: 120.0,
+                  backgroundImage: NetworkImage(driverPhotoUrl!),
+                  backgroundColor: Colors.green.shade100,
+                ),
+              ),
+            )
+                : Row(
+              children: [
+                const Text('Аватар',
+                    style: TextStyle(fontSize: 18.0)),
+                const Spacer(),
+                GestureDetector(
+                  onTap: () async => await addDriverPhotoFlow(),
+                  child: SizedBox(
+                    width: 48.0,
+                    height: 48.0,
+                    child: Image.asset(
+                        'assets/images/icon_avatar_default.png'),
+                  ),
+                ),
+                const Icon(Icons.keyboard_arrow_right),
+              ],
+            ),
             const SizedBox(height: 55.0),
             Row(
               children: [
                 const Text('Ник', style: TextStyle(fontSize: 18.0)),
                 const Spacer(),
-                Text('Пользователь_$userNumber',
-                    style: const TextStyle(fontSize: 18.0)),
+                // Додано: перемикач між текстом і полем редагування
+                if (_isEditingNickname)
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _nicknameController,
+                            style: const TextStyle(fontSize: 18.0),
+                            decoration: InputDecoration(
+                              hintText: 'Введите ник',
+                              border: InputBorder.none,
+                              isDense: true,
+                            ),
+                            autofocus: true,
+                            maxLength: 20, // Обмеження довжини
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.check, size: 20),
+                          onPressed: _saveCustomNickname,
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, size: 20),
+                          onPressed: _cancelNicknameEdit,
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _isEditingNickname = true;
+                        // Якщо вже є кастомний нік - завантажуємо його в поле
+                        if (_nicknameController.text.isEmpty) {
+                          final prefs = SharedPreferences.getInstance();
+                          prefs.then((prefs) {
+                            final customNickname = prefs.getString('custom_nickname');
+                            if (customNickname != null) {
+                              _nicknameController.text = customNickname;
+                            }
+                          });
+                        }
+                      });
+                    },
+                    child: Row(
+                      children: [
+                        Text(
+                          _nicknameController.text.isNotEmpty
+                              ? _nicknameController.text
+                              : 'Пользователь_$userNumber',
+                          style: const TextStyle(fontSize: 18.0),
+                        ),
+                        const SizedBox(width: 8),
+                        const Icon(Icons.edit, size: 16, color: Colors.grey),
+                      ],
+                    ),
+                  ),
               ],
             ),
             const SizedBox(height: 55.0),
@@ -282,13 +372,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: _loading
                         ? const Center(child: CircularProgressIndicator())
                         : ElevatedButton(
-                            onPressed: _loading ? null : _onOkPressed,
-                            child: const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 16.0),
-                              child:
-                                  Text('Ок', style: TextStyle(fontSize: 18.0)),
-                            ),
-                          ),
+                      onPressed: _loading ? null : _onOkPressed,
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 16.0),
+                        child: Text(
+                          _isEditingNickname ? 'Сохранить ник' : 'Ок', // Змінено
+                          style: TextStyle(fontSize: 18.0),
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),
