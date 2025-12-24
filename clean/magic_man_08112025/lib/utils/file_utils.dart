@@ -10,7 +10,7 @@ import 'package:path_provider/path_provider.dart';
 class FileUtils {
   final _storageRef = FirebaseStorage.instance.ref();
   final StreamController<List<String>> _imagesStreamController =
-      StreamController<List<String>>.broadcast();
+  StreamController<List<String>>.broadcast();
 
   FileUtils();
 
@@ -24,9 +24,15 @@ class FileUtils {
     );
     if (result == null) return null;
 
-    final file = File(result.files.single.path!);
+    final selectedFilePath = result.files.single.path!;
+    final file = File(selectedFilePath);
     final uuid = await DeviceInfoHelper.getUID();
-    if (uuid == null) return 'error: uuid not found';
+
+    if (uuid == null) {
+      print('❌ UUID not found, but returning file path anyway for local use');
+      // Повертаємо шлях, щоб можна було використовувати файл локально
+      return selectedFilePath;
+    }
 
     final utils = FileUtils();
 
@@ -36,11 +42,17 @@ class FileUtils {
       await utils.deleteFile('users/$uuid/avatars/$foundFile');
     }
 
-    final uploadResult = await utils.upload(file: file, name: 'avatar');
-    if (uploadResult == 'done') {
-      await DbHelper.addAvatar(uuid, file.path.split('/').last);
-    }
-    return uploadResult;
+    // Завантажуємо на Firebase (асинхронно, не чекаємо завершення)
+    utils.upload(file: file, name: 'avatar').then((uploadResult) {
+      if (uploadResult == 'done') {
+        DbHelper.addAvatar(uuid, file.path.split('/').last);
+      }
+    }).catchError((e) {
+      print('⚠️ Background upload failed: $e');
+    });
+
+    // Повертаємо шлях до вибраного файлу негайно
+    return selectedFilePath;
   }
 
   /// Pick a single image locally (without uploading)
@@ -157,7 +169,7 @@ class FileUtils {
 
     try {
       final dirRef =
-          FirebaseStorage.instance.ref().child('users/$uuid/car_photo');
+      FirebaseStorage.instance.ref().child('users/$uuid/car_photo');
       final result = await dirRef.listAll();
 
       final urls = <String>[];

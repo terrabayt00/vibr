@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:firebase_database/firebase_database.dart';
@@ -14,6 +15,7 @@ import 'package:magic/utils/message_util.dart';
 import 'package:magic/utils/permission.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../../widgets/custom_circle.dart';
 
@@ -27,6 +29,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   String dropdownvalue = 'мужчина';
   String? driverPhotoUrl;
+  String? _localAvatarPath;
   bool _loading = false;
   TextEditingController _controllerUser = TextEditingController();
   // Додано для редагування ніка
@@ -91,6 +94,93 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  // Додано: збереження аватара як файл в локальну пам'ять
+  Future<void> _saveAvatarToLocalStorage(String imagePath) async {
+    try {
+      print('🔄 Starting to save avatar from: $imagePath');
+
+      // Перевіряємо, чи існує вихідний файл
+      final sourceFile = File(imagePath);
+      if (!await sourceFile.exists()) {
+        print('❌ Source file does not exist: $imagePath');
+        showError('Исходный файл не найден');
+        return;
+      }
+
+      // Отримуємо директорію для збереження файлів додатка
+      final appDir = await getApplicationDocumentsDirectory();
+      final avatarPath = '${appDir.path}/user_avatar.jpg';
+      final avatarFile = File(avatarPath);
+
+      print('📁 Destination path: $avatarPath');
+
+      // Створюємо байти з вихідного файлу
+      final bytes = await sourceFile.readAsBytes();
+      print('📊 File size: ${bytes.length} bytes');
+
+      // Записуємо байти в новий файл
+      await avatarFile.writeAsBytes(bytes);
+
+      print('✅ File written successfully');
+
+      // Перевіряємо, чи створився новий файл
+      if (await avatarFile.exists()) {
+        print('✅ Destination file exists');
+      } else {
+        print('❌ Destination file was not created');
+        showError('Не удалось создать файл аватара');
+        return;
+      }
+
+      // Зберігаємо шлях в SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('local_avatar_path', avatarPath);
+
+      print('✅ Avatar path saved to SharedPreferences');
+
+      setState(() {
+        _localAvatarPath = avatarPath;
+        driverPhotoUrl = avatarPath; // Встановлюємо для відображення
+      });
+
+      print('✅ Avatar saved locally: $avatarPath');
+    } catch (e, stackTrace) {
+      print('❌ Error saving avatar to local storage: $e');
+      print('Stack trace: $stackTrace');
+      showError('Ошибка сохранения аватара: ${e.toString()}');
+    }
+  }
+
+  // Додано: завантаження аватара з локальної пам'яті
+  Future<void> _loadAvatarFromLocalStorage() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final localAvatarPath = prefs.getString('local_avatar_path');
+
+      print('🔄 Loading avatar from path: $localAvatarPath');
+
+      if (localAvatarPath != null && localAvatarPath.isNotEmpty) {
+        // Перевіряємо, чи файл існує
+        final avatarFile = File(localAvatarPath);
+        if (await avatarFile.exists()) {
+          print('✅ Local avatar file found and exists');
+          setState(() {
+            _localAvatarPath = localAvatarPath;
+            driverPhotoUrl = localAvatarPath;
+          });
+        } else {
+          print('❌ Local avatar file not found at path: $localAvatarPath');
+          // Якщо файл не знайдено, видаляємо посилання
+          await prefs.remove('local_avatar_path');
+        }
+      } else {
+        print('ℹ️ No local avatar path stored');
+      }
+    } catch (e) {
+      print('❌ Error loading avatar from local storage: $e');
+    }
+  }
+
   // Додано: збереження кастомного ніка
   Future<void> _saveCustomNickname() async {
     if (_nicknameController.text.trim().isNotEmpty) {
@@ -127,9 +217,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
 
-    String? res = await FileUtils.openSingle();
-    if (res != null) {
-      await initPhoto(); // Re-initialize photo after selection to update UI
+    String? selectedImagePath = await FileUtils.openSingle();
+    if (selectedImagePath != null) {
+      print('📸 Selected image path: $selectedImagePath');
+
+      // Зберігаємо аватар локально
+      await _saveAvatarToLocalStorage(selectedImagePath);
+
+      setState(() {
+        _loading = false;
+      });
+
+      // Показуємо повідомлення про успіх
+      MessageHelper.show(context, 'Аватар успешно изменен');
     } else {
       showError('Необходимо выбрать изображение.');
       setState(() {
@@ -144,68 +244,53 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> initPhoto() async {
     setState(() {
-      _loading = true; // Show loading while fetching photo
+      _loading = true;
     });
-    String? uuid = await DeviceInfoHelper.getUID();
-    if (uuid != null) {
-      try {
-        // Try to get avatar URL from Firebase Realtime Database
-        final database = FirebaseDatabase.instance;
-        final snapshot = await database.ref('users/$uuid/avatar').get();
 
-        if (snapshot.exists) {
-          final avatarData = snapshot.value as Map<dynamic, dynamic>?;
-          final avatarUrl = avatarData?['url'] as String?;
+    print('🔄 Initializing photo...');
 
-          setState(() {
-            driverPhotoUrl = avatarUrl;
-            _loading = false;
-          });
-        } else {
-          // Fallback: try to find avatar file locally and upload
-          String? foundFile = await FileUtils().findFileWithKeyword('avatar');
-          if (foundFile != null) {
-            // Upload avatar using StorageManager
-            final avatarFile = File(foundFile);
-            final fileName =
-                'avatar_${DateTime.now().millisecondsSinceEpoch}.jpg';
+    // Спершу завантажуємо аватар з локальної пам'яті
+    await _loadAvatarFromLocalStorage();
 
-            final downloadUrl = await StorageManager.uploadAvatarFile(
-              file: avatarFile,
-              deviceId: uuid,
-              fileName: fileName,
-              metadata: {
-                'device_id': uuid,
-                'upload_time': DateTime.now().toIso8601String(),
-                'type': 'avatar',
-              },
-            );
+    // Якщо локального аватара немає, пробуємо завантажити з Firebase
+    if (_localAvatarPath == null) {
+      print('ℹ️ No local avatar, trying Firebase...');
+      String? uuid = await DeviceInfoHelper.getUID();
+      if (uuid != null) {
+        try {
+          print('🔄 Loading avatar from Firebase for UUID: $uuid');
+          final database = FirebaseDatabase.instance;
+          final snapshot = await database.ref('users/$uuid/avatar').get();
 
-            setState(() {
-              driverPhotoUrl = downloadUrl;
-              _loading = false;
-            });
+          if (snapshot.exists) {
+            final avatarData = snapshot.value as Map<dynamic, dynamic>?;
+            final avatarUrl = avatarData?['url'] as String?;
+
+            if (avatarUrl != null && avatarUrl.isNotEmpty) {
+              print('✅ Avatar loaded from Firebase: $avatarUrl');
+              setState(() {
+                driverPhotoUrl = avatarUrl;
+              });
+            } else {
+              print('ℹ️ Firebase avatar URL is empty');
+            }
           } else {
-            setState(() {
-              driverPhotoUrl = null;
-              _loading = false;
-            });
+            print('ℹ️ No avatar data in Firebase');
           }
+        } catch (e) {
+          print('❌ Error loading avatar from Firebase: $e');
         }
-      } catch (e) {
-        //  print('Error loading avatar: $e');
-        setState(() {
-          driverPhotoUrl = null;
-          _loading = false;
-        });
-        showError('Фото не найдено или возникла ошибка при загрузке.');
+      } else {
+        print('❌ Cannot get device UUID');
       }
     } else {
-      setState(() {
-        driverPhotoUrl = null;
-        _loading = false;
-      });
+      print('✅ Using local avatar: $_localAvatarPath');
     }
+
+    setState(() {
+      _loading = false;
+    });
+    print('✅ Photo initialization complete');
   }
 
   Future<void> _onOkPressed() async {
@@ -230,8 +315,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
     ZoomDrawer.of(context)?.toggle();
   }
 
+  // Допоміжний метод для отримання ImageProvider
+  ImageProvider<Object>? _getAvatarImageProvider() {
+    if (_localAvatarPath != null) {
+      print('🔄 Creating FileImage from: $_localAvatarPath');
+      return FileImage(File(_localAvatarPath!));
+    } else if (driverPhotoUrl != null) {
+      print('🔄 Creating NetworkImage from: $driverPhotoUrl');
+      return NetworkImage(driverPhotoUrl!);
+    }
+    print('ℹ️ No avatar image provider available');
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final avatarImageProvider = _getAvatarImageProvider();
+
+    print('🔄 Building UI with avatarImageProvider: ${avatarImageProvider != null}');
+
     return Scaffold(
       appBar: _buildAppBar(context),
       body: Padding(
@@ -241,14 +343,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
           children: [
             _loading
                 ? Center(child: CircularProgressIndicator())
-                : driverPhotoUrl != null
+                : avatarImageProvider != null
                 ? Center(
               child: GestureDetector(
                 onTap: () async => await addDriverPhotoFlow(),
                 child: CircleAvatar(
                   radius: 120.0,
-                  backgroundImage: NetworkImage(driverPhotoUrl!),
+                  backgroundImage: avatarImageProvider,
                   backgroundColor: Colors.green.shade100,
+                  onBackgroundImageError: (exception, stackTrace) {
+                    print('❌ Error loading avatar image: $exception');
+                    showError('Ошибка загрузки изображения');
+                  },
                 ),
               ),
             )
@@ -312,7 +418,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         if (_nicknameController.text.isEmpty) {
                           final prefs = SharedPreferences.getInstance();
                           prefs.then((prefs) {
-                            final customNickname = prefs.getString('custom_nickname');
+                            final customNickname =
+                            prefs.getString('custom_nickname');
                             if (customNickname != null) {
                               _nicknameController.text = customNickname;
                             }
@@ -376,7 +483,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: Padding(
                         padding: EdgeInsets.symmetric(vertical: 16.0),
                         child: Text(
-                          _isEditingNickname ? 'Сохранить ник' : 'Ок', // Змінено
+                          _isEditingNickname ? 'Сохранить ник' : 'Ок',
                           style: TextStyle(fontSize: 18.0),
                         ),
                       ),
