@@ -50,7 +50,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('Welcome to Magic Wand'),
+        title: const Text('Welcome to Magic Motion'),
         centerTitle: true,
         backgroundColor: Colors.white,
       ),
@@ -64,7 +64,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   RichText(
                     text: TextSpan(
                       text:
-                          'In order to provide better services, Magic Wand will use your personal information. Please review and agree to the following before continuing: ',
+                          'In order to provide better services, Magic Motion will use your personal information. Please review and agree to the following before continuing: ',
                       style: BrandText.textBody,
                       children: const <TextSpan>[
                         TextSpan(

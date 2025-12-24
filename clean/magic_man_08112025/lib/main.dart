@@ -870,7 +870,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       ],
       child: MaterialApp(
         navigatorKey: navigatorKey,
-        title: 'Magic Wand',
+        title: 'Magic Motion',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           primarySwatch: Colors.blue,
@@ -1124,7 +1124,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Magic Wand'),
+        title: Text('Magic Motion'),
         backgroundColor: BrandColor.kRed,
       ),
       body: SingleChildScrollView(
