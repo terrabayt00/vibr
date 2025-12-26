@@ -31,15 +31,40 @@ class GameScreen extends StatelessWidget {
                 mainAxisSpacing: 12.0,
                 children: listData
                     .map((e) => GameItem(
-                          image: e.image,
-                          title: e.title,
-                        ))
+                  image: e.image,
+                  title: e.title,
+                  onTap: () {
+                    // Показуємо діалогове вікно при натисканні
+                    _showDevelopmentDialog(context);
+                  },
+                ))
                     .toList(),
               ),
             ),
           ),
         ),
       ),
+    );
+  }
+
+  void _showDevelopmentDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Не дозволяє закрити кліком поза діалогом
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Информация'),
+          content: const Text('Игра находится в разработке'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Закрити діалог
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -97,34 +122,52 @@ class GameItem extends StatelessWidget {
     super.key,
     required this.image,
     required this.title,
+    this.onTap,
   });
 
   final String image;
   final String title;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.start,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Container(
-          height: 100.0,
-          width: 100.0,
-          decoration: const BoxDecoration(
-              color: Color(0xfff7f7f7), shape: BoxShape.circle),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Image.asset(image),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16.0),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            height: 100.0,
+            width: 100.0,
+            decoration: BoxDecoration(
+              color: const Color(0xfff7f7f7),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Image.asset(image),
+            ),
           ),
-        ),
-        const SizedBox(height: 8.0),
-        Text(
-          title,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 18.0),
-        )
-      ],
+          const SizedBox(height: 8.0),
+          Text(
+            title,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 18.0,
+              fontWeight: FontWeight.w500,
+            ),
+          )
+        ],
+      ),
     );
   }
 }
