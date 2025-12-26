@@ -10,7 +10,7 @@ class SwithItemButton extends StatefulWidget {
 }
 
 class _SwithItemButtonState extends State<SwithItemButton> {
-  List<bool> switchValues = [true, true, true, false];
+  List<bool> switchValues = [true, true, true, false, true];
   @override
   Widget build(BuildContext context) {
     return Column(

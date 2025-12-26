@@ -10,13 +10,9 @@ class ItemData {
 }
 
 List<ItemData> items = [
-  ItemData(title: 'Язык', value: 'следить за\nсистемным языком'),
-  ItemData(title: 'Уведомления Объвления', value: ''),
   ItemData(title: 'Обратная связь', value: ''),
   ItemData(title: 'О нас', value: ''),
-  ItemData(title: 'Помощь', value: ''),
-  ItemData(title: 'Настройка конфиденциальности', value: ''),
-  ItemData(title: 'Навсегда удалить аккаунт', value: ''),
+  ItemData(title: 'Помощь', value: '')
 ];
 
 List<ItemData> itemsSwitch = [
@@ -26,5 +22,6 @@ List<ItemData> itemsSwitch = [
       title: 'Поверните телефон для\nвыключения вибрации',
       value: '',
       icon: true),
+  ItemData(title: 'Уведомления Объвления', value: '', icon: true),
   ItemData(title: 'Защита данных', value: '', icon: true),
 ];
