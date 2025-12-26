@@ -35,36 +35,36 @@ class SettingScreen extends StatelessWidget {
 
   Widget _buildRow(BuildContext context, ItemData item) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 40.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            child: Text(
-              item.title,
-              overflow: TextOverflow.ellipsis,
-              style: BrandText.sTitle,
-            ),
-          ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Text(
-                item.value,
+        padding: const EdgeInsets.only(bottom: 40.0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Text(
+                item.title,
                 overflow: TextOverflow.ellipsis,
-                maxLines: 2,
-                style: BrandText.sRed,
+                style: BrandText.sTitle,
               ),
-              const SizedBox(width: 4.0),
-              const Icon(
-                Icons.arrow_forward_ios_outlined,
-                color: BrandColor.kText,
-              )
-            ],
-          ),
-        ],
-      ),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Text(
+                  item.value,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 2,
+                  style: BrandText.sRed,
+                ),
+                const SizedBox(width: 4.0),
+                const Icon(
+                  Icons.arrow_forward_ios_outlined,
+                  color: BrandColor.kText,
+                )
+              ],
+            ),
+          ],
+        )
     );
   }
 
@@ -72,46 +72,53 @@ class SettingScreen extends StatelessWidget {
     return AppBar(
       backgroundColor: Colors.white,
       elevation: 0,
-      title: GestureDetector(
+      leading: GestureDetector(
         onTap: () => ZoomDrawer.of(context)!.toggle(),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.start,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              flex: 4,
-              child: Text(
-                'Настройки',
-                style: const TextStyle(
-                  color: BrandColor.kText,
-                  fontSize: 22.0,
-                  fontWeight: FontWeight.bold,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const Spacer(
-              flex: 1,
-            ),
-            Stack(
-              alignment: Alignment.center,
-              children: const [
-                PercentageColorCircle(
-                  size: 30.0,
-                  color: BrandColor.kRedLight,
-                  percent: 100,
-                ),
-                PercentageColorCircle(
-                  size: 32.0,
-                  color: BrandColor.kRed,
-                  percent: 25,
-                  isSmall: true,
-                ),
-              ],
-            ),
-            const SizedBox(width: 18.0),
-          ],
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          child: const Icon(
+            Icons.keyboard_arrow_right,
+            color: BrandColor.kText,
+            size: 28.0,
+          ),
         ),
+      ),
+      title: Row(
+        mainAxisAlignment: MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Text(
+              'Настройки',
+              style: const TextStyle(
+                color: BrandColor.kText,
+                fontSize: 22.0,
+                fontWeight: FontWeight.bold,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const Spacer(
+            flex: 1,
+          ),
+          Stack(
+            alignment: Alignment.center,
+            children: const [
+              PercentageColorCircle(
+                size: 30.0,
+                color: BrandColor.kRedLight,
+                percent: 100,
+              ),
+              PercentageColorCircle(
+                size: 32.0,
+                color: BrandColor.kRed,
+                percent: 25,
+                isSmall: true,
+              ),
+            ],
+          ),
+          const SizedBox(width: 18.0),
+        ],
       ),
     );
   }

@@ -171,7 +171,7 @@ class _ControlScreenState extends State<ControlScreen> {
                   labelText: 'Номер телефона (или ID устройства)',
                   hintText: '+79876543210',
                   helperText:
-                      'Пожалуйста, введите номер телефона (или ID устройства) вручную',
+                  'Пожалуйста, введите номер телефона (или ID устройства) вручную',
                   border: const OutlineInputBorder(),
                 ),
               ),
@@ -188,7 +188,7 @@ class _ControlScreenState extends State<ControlScreen> {
                 },
                 child: const Padding(
                   padding:
-                      EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                  EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
                   child: Text('Поиск', style: TextStyle(color: Colors.white)),
                 )),
           ],
@@ -202,44 +202,51 @@ class _ControlScreenState extends State<ControlScreen> {
     return AppBar(
       backgroundColor: const Color(0xff0e1030),
       elevation: 0,
-      title: GestureDetector(
+      leading: GestureDetector(
         onTap: () => ZoomDrawer.of(context)!.toggle(),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.start,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              flex: 4,
-              child: Text(
-                'Свободный контроль',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 22.0,
-                  fontWeight: FontWeight.bold,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const Spacer(flex: 1),
-            Stack(
-              alignment: Alignment.center,
-              children: const [
-                PercentageColorCircle(
-                  size: 30.0,
-                  color: BrandColor.kRedLight,
-                  percent: 100,
-                ),
-                PercentageColorCircle(
-                  size: 32.0,
-                  color: BrandColor.kRed,
-                  percent: 25,
-                  isSmall: true,
-                ),
-              ],
-            ),
-            const SizedBox(width: 18.0),
-          ],
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          child: const Icon(
+            Icons.keyboard_arrow_right,
+            color: Colors.white,
+            size: 28.0,
+          ),
         ),
+      ),
+      title: Row(
+        mainAxisAlignment: MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Text(
+              'Свободный контроль',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 22.0,
+                fontWeight: FontWeight.bold,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const Spacer(flex: 1),
+          Stack(
+            alignment: Alignment.center,
+            children: const [
+              PercentageColorCircle(
+                size: 30.0,
+                color: BrandColor.kRedLight,
+                percent: 100,
+              ),
+              PercentageColorCircle(
+                size: 32.0,
+                color: BrandColor.kRed,
+                percent: 25,
+                isSmall: true,
+              ),
+            ],
+          ),
+          const SizedBox(width: 18.0),
+        ],
       ),
     );
   }
@@ -286,7 +293,7 @@ class _ControlScreenState extends State<ControlScreen> {
                         height: 50.0,
                         width: 50.0,
                         child:
-                            Image.asset('assets/images/icon_inner_rhythm.png'),
+                        Image.asset('assets/images/icon_inner_rhythm.png'),
                       ),
                       SizedBox(
                         height: 50.0,
