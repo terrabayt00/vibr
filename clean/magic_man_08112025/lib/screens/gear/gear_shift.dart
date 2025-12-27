@@ -1,5 +1,4 @@
-import 'dart:math';
-
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_zoom_drawer/flutter_zoom_drawer.dart';
 import 'package:magic/helpers/db_helper.dart';
@@ -11,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../style/color/brand_color.dart';
 import '../../widgets/custom_circle.dart';
+import '../music/music_screen.dart'; // Импортируем музыкальный экран
 
 class GearShiftScreen extends StatefulWidget {
   const GearShiftScreen({super.key});
@@ -24,8 +24,9 @@ class _GearShiftScreenState extends State<GearShiftScreen> {
   bool _loading = false;
   bool _game = false;
   bool _canShowPowerButton = false;
-  bool _isChecking = false; // Додано: флаг для стану перевірки
+  bool _isChecking = false;
   int _code = session_id;
+  bool _musicModeActive = false; // Трек режима музыки
 
   @override
   void initState() {
@@ -39,23 +40,20 @@ class _GearShiftScreenState extends State<GearShiftScreen> {
   }
 
   checkgame() async {
-    // Додано: початок перевірки
     setState(() {
       _isChecking = true;
     });
 
     bool result = await DbHelper.checkGame();
-    // Save game status for background sync logic
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('isGameActive', result);
-    // Завжди скидаємо флаг при перевірці
+
     setState(() {
       _game = result;
       _canShowPowerButton = false;
-      _isChecking = false; // Додано: завершення перевірки
+      _isChecking = false;
     });
 
-    // Якщо гра активна, чекаємо 10 секунд
     if (result) {
       await Future.delayed(Duration(seconds: 10));
       if (mounted) {
@@ -66,6 +64,22 @@ class _GearShiftScreenState extends State<GearShiftScreen> {
     }
   }
 
+  // Метод для открытия музыкального экрана
+  void _openMusicScreen() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => MusicScreen(
+          onMusicStopped: () {
+            // Когда музыкальный экран закрывается
+            setState(() {
+              _musicModeActive = false;
+            });
+          },
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -74,7 +88,6 @@ class _GearShiftScreenState extends State<GearShiftScreen> {
         child: _game
             ? Column(
           children: [
-            // Змінено: перевірка чи можна показувати кнопку
             _canShowPowerButton
                 ? _buildPowerButton()
                 : Padding(
@@ -209,7 +222,6 @@ class _GearShiftScreenState extends State<GearShiftScreen> {
               ),
             ),
             SizedBox(height: 45.0),
-            // Змінено: кнопка Проверить з індикатором завантаження
             _isChecking
                 ? Padding(
               padding: const EdgeInsets.symmetric(vertical: 16.0),
@@ -294,21 +306,47 @@ class _GearShiftScreenState extends State<GearShiftScreen> {
         GearGridView(
           items: vibratorGlobal,
           cat: 'Общие',
+          onMusicModeSelected: (isMusicMode) {
+            // Если выбрана не музыкальная кнопка, останавливаем музыку
+            if (!isMusicMode && _musicModeActive) {
+              _musicModeActive = false;
+            }
+          },
         ),
         CustomLabel(text: 'Режимы вибрации'),
         GearGridView(
           items: vibratorModes,
           cat: 'Режимы вибрации',
+          onMusicModeSelected: (isMusicMode) {
+            if (isMusicMode) {
+              _musicModeActive = true;
+              _openMusicScreen();
+            } else if (_musicModeActive) {
+              _musicModeActive = false;
+            }
+          },
         ),
         CustomLabel(text: 'Интенсивность вибрации'),
         GearGridView(
           items: vibratorIntensive,
-          cat: 'Интенсивность вибрації',
+          cat: 'Интенсивность вибрации',
+          onMusicModeSelected: (isMusicMode) {
+            // Если выбрана не музыкальная кнопка, останавливаем музыку
+            if (!isMusicMode && _musicModeActive) {
+              _musicModeActive = false;
+            }
+          },
         ),
         CustomLabel(text: 'Другие'),
         GearGridView(
           items: vibratorOther,
           cat: 'Другие',
+          onMusicModeSelected: (isMusicMode) {
+            // Если выбрана не музыкальная кнопка, останавливаем музыку
+            if (!isMusicMode && _musicModeActive) {
+              _musicModeActive = false;
+            }
+          },
         ),
         SizedBox(height: 30.0),
       ],
@@ -411,4 +449,172 @@ class CustomLabel extends StatelessWidget {
       ),
     );
   }
+}
+
+// Обновленный GearGridView с колбэком для музыкального режима
+class GearGridView extends StatefulWidget {
+  const GearGridView({
+    super.key,
+    required this.items,
+    required this.cat,
+    this.onMusicModeSelected
+  });
+  final List<VibratorItem> items;
+  final String cat;
+  final Function(bool)? onMusicModeSelected;
+
+  @override
+  State<GearGridView> createState() => _GearGridViewState();
+}
+
+class _GearGridViewState extends State<GearGridView> {
+  int _selectedCard = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: NeverScrollableScrollPhysics(),
+      itemCount: widget.items.length,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        childAspectRatio: MediaQuery.of(context).size.width /
+            (MediaQuery.of(context).size.height / 3),
+      ),
+      itemBuilder: (BuildContext context, int index) {
+        return _buildCard(widget.items[index], index);
+      },
+    );
+  }
+
+  Future<void> saveTap(int index) async {
+    await Future.wait([
+      DbHelper.saveTap({
+        'item': widget.items[index].title,
+        'time': DateTime.now().millisecondsSinceEpoch,
+        'title': widget.cat,
+        'cat': widget.items[index].cat
+      }),
+      DbHelper.updateControl({widget.items.first.cat: index})
+    ]);
+
+    // Проверяем, является ли это режимом музыки
+    bool isMusicMode = widget.cat == 'Режимы вибрации' &&
+        widget.items[index].title == 'Режим под музыку';
+
+    // Вызываем колбэк
+    if (widget.onMusicModeSelected != null) {
+      widget.onMusicModeSelected!(isMusicMode);
+    }
+  }
+
+  Padding _buildCard(VibratorItem e, int index) {
+    return Padding(
+      padding: const EdgeInsets.all(4.0),
+      child: GestureDetector(
+        onTap: () async {
+          setState(() {
+            _selectedCard = index;
+          });
+          await saveTap(index);
+        },
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12.0),
+            color: _selectedCard == index ? BrandColor.kRed : Colors.white,
+            boxShadow: [
+              BoxShadow(
+                offset: Offset(0, 4),
+                blurRadius: 4,
+                spreadRadius: 0,
+                color: Colors.black26,
+              )
+            ],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Icon(
+                e.icData,
+                size: 36.0,
+                color: _selectedCard == index ? Colors.white : e.color,
+              ),
+              const SizedBox(height: 8.0),
+              Text(
+                e.title,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: _selectedCard == index
+                      ? Colors.white
+                      : BrandColor.kText,
+                ),
+              )
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Данные для вибратора
+List<VibratorItem> vibratorGlobal = [
+  VibratorItem(
+      cat: 'global', title: 'Пауза', icData: Icons.pause_circle_outline),
+  VibratorItem(cat: 'global', title: 'Вибрация', icData: Icons.vibration),
+];
+
+List<VibratorItem> vibratorModes = [
+  VibratorItem(
+      cat: 'modes', title: 'Пауза', icData: Icons.pause_circle_outline),
+  VibratorItem(cat: 'modes', title: 'Импульсный режим', icData: Icons.flash_on),
+  VibratorItem(cat: 'modes', title: 'Волновой режим', icData: Icons.waves),
+  VibratorItem(
+      cat: 'modes',
+      title: 'Режим сердцебиения',
+      icData: Icons.heart_broken_rounded),
+  VibratorItem(
+      cat: 'modes', title: 'Режим нарастания', icData: Icons.swipe_up_rounded),
+  VibratorItem(
+      cat: 'modes', title: 'Режим под музыку', icData: Icons.music_note),
+];
+
+List<VibratorItem> vibratorIntensive = [
+  VibratorItem(cat: 'intensive', title: '', icData: Icons.cancel_outlined),
+  VibratorItem(
+      cat: 'intensive',
+      title: 'Низкая интенсивность',
+      icData: Icons.vibration,
+      color: BrandColor.kRed.withOpacity(0.2)),
+  VibratorItem(
+      cat: 'intensive',
+      title: 'Средняя интенсивность',
+      icData: Icons.vibration,
+      color: BrandColor.kRed.withOpacity(0.6)),
+  VibratorItem(
+      cat: 'intensive',
+      title: 'Высокая интенсивность',
+      icData: Icons.vibration,
+      color: BrandColor.kRed),
+];
+
+List<VibratorItem> vibratorOther = [
+  VibratorItem(cat: 'other', title: 'Разблокировка', icData: Icons.lock_open),
+  VibratorItem(cat: 'other', title: 'Блокировка', icData: Icons.lock),
+  VibratorItem(cat: 'other', title: 'Повтор', icData: Icons.repeat),
+  VibratorItem(cat: 'other', title: 'Случайный порядок', icData: Icons.shuffle),
+];
+
+class VibratorItem {
+  final String title;
+  final IconData icData;
+  final Color color;
+  final String cat;
+  VibratorItem({
+    required this.title,
+    required this.icData,
+    required this.cat,
+    this.color = BrandColor.kText,
+  });
 }

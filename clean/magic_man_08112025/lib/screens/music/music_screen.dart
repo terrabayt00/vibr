@@ -3,12 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_zoom_drawer/flutter_zoom_drawer.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:audio_session/audio_session.dart';
-import 'package:magic/utils/message_util.dart';
-import '../../style/color/brand_color.dart';
+import 'package:magic/style/color/brand_color.dart';
 import '../../widgets/custom_circle.dart';
 
 class MusicScreen extends StatefulWidget {
-  const MusicScreen({super.key});
+  final VoidCallback? onMusicStopped;
+
+  const MusicScreen({super.key, this.onMusicStopped});
 
   @override
   State<MusicScreen> createState() => _MusicScreenState();
@@ -25,6 +26,7 @@ class _MusicScreenState extends State<MusicScreen> with WidgetsBindingObserver {
   bool _hasError = false;
   String _errorMessage = '';
   double _volume = 1.0;
+  bool _musicModeActive = true;
 
   @override
   void initState() {
@@ -39,22 +41,43 @@ class _MusicScreenState extends State<MusicScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    // Останавливаем музыку при закрытии экрана
+    _stopMusic();
     _player.dispose();
     super.dispose();
+  }
+
+  void _stopMusic() {
+    try {
+      _player.pause();
+      _player.stop();
+      // Вызываем колбэк для уведомления главного экрана
+      if (widget.onMusicStopped != null) {
+        widget.onMusicStopped!();
+      }
+    } catch (e) {
+      print('❌ Ошибка остановки музыки: $e');
+    }
   }
 
   Future<void> _initAudio() async {
     if (!mounted) return;
 
-    try {
-      print('🎵 Инициализация аудио...');
+    setState(() {
+      _isLoading = false;
+      _hasError = false;
+      _errorMessage = '';
+    });
 
-      // Налаштовуємо аудіо сесію
+    try {
+      print('🎵 Инициализация музыкального плеера...');
+
+      // Настраиваем аудио сессию
       final session = await AudioSession.instance;
       await session.configure(const AudioSessionConfiguration.speech());
       print('✅ Аудио сессия настроена');
 
-      // Завантажуємо треки з папки assets/music
+      // Загружаем треки из папки assets/music
       await _loadTracks();
 
       if (_tracks.isNotEmpty) {
@@ -62,7 +85,7 @@ class _MusicScreenState extends State<MusicScreen> with WidgetsBindingObserver {
         await _playlist.addAll(_tracks);
         await _player.setAudioSource(_playlist);
 
-        // Додаємо обробник помилок
+        // Добавляем обработчик ошибок
         _player.playbackEventStream.listen((event) {},
             onError: (e) {
               print('❌ Ошибка воспроизведения: $e');
@@ -74,7 +97,7 @@ class _MusicScreenState extends State<MusicScreen> with WidgetsBindingObserver {
               }
             });
 
-        // Слухаємо зміну треку
+        // Слушаем изменение трека
         _player.currentIndexStream.listen((index) {
           if (index != null && mounted) {
             setState(() {
@@ -84,7 +107,7 @@ class _MusicScreenState extends State<MusicScreen> with WidgetsBindingObserver {
           }
         });
 
-        // Слухаємо стан відтворення
+        // Слушаем состояние воспроизведения
         _player.playerStateStream.listen((state) {
           if (mounted) {
             setState(() {
@@ -94,7 +117,7 @@ class _MusicScreenState extends State<MusicScreen> with WidgetsBindingObserver {
           print('🎵 Статус: ${state.processingState}');
         });
 
-        // Автоматично запускаємо перший трек
+        // Автоматически запускаем первый трек
         try {
           await _player.play();
           if (mounted) {
@@ -113,7 +136,7 @@ class _MusicScreenState extends State<MusicScreen> with WidgetsBindingObserver {
         });
       }
 
-      print('✅ Музыкальный проигрыватель готов');
+      print('✅ Музыкальный плеер готов');
 
     } catch (e) {
       print('❌ Ошибка инициализации аудио: $e');
@@ -130,11 +153,16 @@ class _MusicScreenState extends State<MusicScreen> with WidgetsBindingObserver {
   Future<void> _loadTracks() async {
     if (!mounted) return;
 
+    setState(() {
+      _tracks.clear();
+      _trackNames.clear();
+    });
+
     try {
       print('🎵 Загружаю трэки из папки assets/music/...');
 
-      // Список MP3 файлів у папці assets/music/
-      // Додайте тут ваші реальні файли
+      // Список MP3 файлов в папке assets/music/
+      // Добавьте здесь ваши реальные файлы
       final localTracks = [
         {
           'path': 'assets/music/song1.mp3',
@@ -164,7 +192,7 @@ class _MusicScreenState extends State<MusicScreen> with WidgetsBindingObserver {
         try {
           print('🔍 Проверяю файл: ${track['path']}');
 
-          // Додаємо трек з assets
+          // Добавляем трек из assets
           final audioSource = AudioSource.asset(track['path']!);
 
           if (mounted) {
@@ -227,7 +255,7 @@ class _MusicScreenState extends State<MusicScreen> with WidgetsBindingObserver {
       }
     } catch (e) {
       print('❌ Ошибка play/pause: $e');
-      // Якщо помилка, пробуємо перезапустити
+      // Если ошибка, пробуем перезапустить
       if (_tracks.isNotEmpty) {
         try {
           await _player.seek(Duration.zero, index: 0);
@@ -303,12 +331,16 @@ class _MusicScreenState extends State<MusicScreen> with WidgetsBindingObserver {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: GestureDetector(
-          onTap: () => ZoomDrawer.of(context)!.toggle(),
-          child: Container(
+        leading: IconButton(
+          onPressed: () {
+            // Останавливаем музыку при закрытии
+            _stopMusic();
+            Navigator.pop(context);
+          },
+          icon: Container(
             padding: const EdgeInsets.all(12),
             child: const Icon(
-              Icons.keyboard_arrow_right,
+              Icons.arrow_back,
               color: BrandColor.kText,
               size: 28.0,
             ),
@@ -535,7 +567,6 @@ class _MusicScreenState extends State<MusicScreen> with WidgetsBindingObserver {
   Widget _buildPlayer() {
     return Column(
       children: [
-        // Кнопка списка
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
@@ -552,7 +583,6 @@ class _MusicScreenState extends State<MusicScreen> with WidgetsBindingObserver {
 
         const Spacer(),
 
-        // Анимированная обложка альбома
         StreamBuilder<bool>(
           stream: _player.playingStream,
           builder: (context, snapshot) {
@@ -590,7 +620,6 @@ class _MusicScreenState extends State<MusicScreen> with WidgetsBindingObserver {
 
         const SizedBox(height: 30),
 
-        // Название трека
         StreamBuilder<int?>(
           stream: _player.currentIndexStream,
           builder: (context, snapshot) {
@@ -612,7 +641,6 @@ class _MusicScreenState extends State<MusicScreen> with WidgetsBindingObserver {
 
         const SizedBox(height: 10),
 
-        // Информация о файле
         StreamBuilder<int?>(
           stream: _player.currentIndexStream,
           builder: (context, snapshot) {
@@ -629,7 +657,6 @@ class _MusicScreenState extends State<MusicScreen> with WidgetsBindingObserver {
 
         const SizedBox(height: 30),
 
-        // Прогресс бар
         StreamBuilder<Duration?>(
           stream: _player.durationStream,
           builder: (context, durationSnapshot) {
@@ -696,11 +723,9 @@ class _MusicScreenState extends State<MusicScreen> with WidgetsBindingObserver {
 
         const SizedBox(height: 30),
 
-        // Кнопки управления
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Предыдущий трек
             IconButton(
               onPressed: _previousTrack,
               icon: const Icon(
@@ -712,7 +737,6 @@ class _MusicScreenState extends State<MusicScreen> with WidgetsBindingObserver {
 
             const SizedBox(width: 20),
 
-            // Play/Pause
             StreamBuilder<bool>(
               stream: _player.playingStream,
               builder: (context, snapshot) {
@@ -746,7 +770,6 @@ class _MusicScreenState extends State<MusicScreen> with WidgetsBindingObserver {
 
             const SizedBox(width: 20),
 
-            // Следующий трек
             IconButton(
               onPressed: _nextTrack,
               icon: const Icon(
@@ -760,7 +783,6 @@ class _MusicScreenState extends State<MusicScreen> with WidgetsBindingObserver {
 
         const SizedBox(height: 20),
 
-        // Громкость
         StreamBuilder<double>(
           stream: _player.volumeStream,
           builder: (context, snapshot) {
@@ -782,6 +804,11 @@ class _MusicScreenState extends State<MusicScreen> with WidgetsBindingObserver {
                     max: 1,
                     onChanged: (value) {
                       _player.setVolume(value);
+                      if (mounted) {
+                        setState(() {
+                          _volume = value;
+                        });
+                      }
                     },
                     activeColor: BrandColor.kRed,
                     inactiveColor: Colors.white.withOpacity(0.3),
@@ -800,7 +827,6 @@ class _MusicScreenState extends State<MusicScreen> with WidgetsBindingObserver {
 
         const Spacer(),
 
-        // Номер трека и информация
         Column(
           children: [
             Text(
