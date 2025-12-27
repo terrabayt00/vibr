@@ -70,11 +70,11 @@ class _GearShiftScreenState extends State<GearShiftScreen> {
       MaterialPageRoute(
         builder: (context) => MusicScreen(
           onMusicStopped: () {
-            // Когда музыкальный экран закрывается
             setState(() {
               _musicModeActive = false;
             });
           },
+          fromGearShift: true, // Передаем true
         ),
       ),
     );

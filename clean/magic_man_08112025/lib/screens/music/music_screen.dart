@@ -8,8 +8,13 @@ import '../../widgets/custom_circle.dart';
 
 class MusicScreen extends StatefulWidget {
   final VoidCallback? onMusicStopped;
+  final bool fromGearShift; // Новый параметр
 
-  const MusicScreen({super.key, this.onMusicStopped});
+  const MusicScreen({
+    super.key,
+    this.onMusicStopped,
+    this.fromGearShift = false, // По умолчанию false
+  });
 
   @override
   State<MusicScreen> createState() => _MusicScreenState();
@@ -32,6 +37,7 @@ class _MusicScreenState extends State<MusicScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+
     // Сразу запускаем инициализацию аудио
     Future.delayed(Duration.zero, () {
       _initAudio();
@@ -41,8 +47,10 @@ class _MusicScreenState extends State<MusicScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    // Останавливаем музыку при закрытии экрана
-    _stopMusic();
+    // Останавливаем музыку при закрытии экрана только если это режим под музыку
+    if (widget.fromGearShift) {
+      _stopMusic();
+    }
     _player.dispose();
     super.dispose();
   }
@@ -71,6 +79,7 @@ class _MusicScreenState extends State<MusicScreen> with WidgetsBindingObserver {
 
     try {
       print('🎵 Инициализация музыкального плеера...');
+      print('📱 Режим: ${widget.fromGearShift ? 'Из GearShift' : 'Из меню'}');
 
       // Настраиваем аудио сессию
       final session = await AudioSession.instance;
@@ -117,17 +126,20 @@ class _MusicScreenState extends State<MusicScreen> with WidgetsBindingObserver {
           print('🎵 Статус: ${state.processingState}');
         });
 
-        // Автоматически запускаем первый трек
-        try {
-          await _player.play();
-          if (mounted) {
-            setState(() {
-              _isPlaying = true;
-            });
+        // Автоматически запускаем первый трек ТОЛЬКО если это режим под музыку
+        if (widget.fromGearShift) {
+          try {
+            await _player.play();
+            if (mounted) {
+              setState(() {
+                _isPlaying = true;
+              });
+            }
+          } catch (e) {
+            print('⚠️ Не удалось автоматически запустить трек: $e');
           }
-        } catch (e) {
-          print('⚠️ Не удалось автоматически запустить трек: $e');
         }
+        // Из меню - не запускаем автоматически
       }
 
       if (mounted) {
@@ -331,9 +343,10 @@ class _MusicScreenState extends State<MusicScreen> with WidgetsBindingObserver {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
+        leading: widget.fromGearShift
+            ? IconButton(
           onPressed: () {
-            // Останавливаем музыку при закрытии
+            // Из GearShift - возвращаемся назад и останавливаем музыку
             _stopMusic();
             Navigator.pop(context);
           },
@@ -341,6 +354,18 @@ class _MusicScreenState extends State<MusicScreen> with WidgetsBindingObserver {
             padding: const EdgeInsets.all(12),
             child: const Icon(
               Icons.arrow_back,
+              color: BrandColor.kText,
+              size: 28.0,
+            ),
+          ),
+        )
+            : GestureDetector(
+          // Из меню - открываем боковое меню
+          onTap: () => ZoomDrawer.of(context)!.toggle(),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            child: const Icon(
+              Icons.keyboard_arrow_right,
               color: BrandColor.kText,
               size: 28.0,
             ),
@@ -451,9 +476,9 @@ class _MusicScreenState extends State<MusicScreen> with WidgetsBindingObserver {
             strokeWidth: 3,
           ),
           const SizedBox(height: 20),
-          const Text(
-            'ЗАГРУЗКА МУЗЫКИ',
-            style: TextStyle(
+          Text(
+            widget.fromGearShift ? 'ЗАГРУЗКА РЕЖИМА ПОД МУЗЫКУ' : 'ЗАГРУЗКА МУЗЫКИ',
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -483,9 +508,9 @@ class _MusicScreenState extends State<MusicScreen> with WidgetsBindingObserver {
             size: 80,
           ),
           const SizedBox(height: 20),
-          const Text(
-            'ОШИБКА ЗАГРУЗКИ',
-            style: TextStyle(
+          Text(
+            widget.fromGearShift ? 'ОШИБКА РЕЖИМА ПОД МУЗЫКУ' : 'ОШИБКА ЗАГРУЗКИ МУЗЫКИ',
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 20,
               fontWeight: FontWeight.bold,
@@ -532,9 +557,9 @@ class _MusicScreenState extends State<MusicScreen> with WidgetsBindingObserver {
             size: 80,
           ),
           const SizedBox(height: 20),
-          const Text(
-            'НЕТ МУЗЫКАЛЬНЫХ ФАЙЛОВ',
-            style: TextStyle(
+          Text(
+            widget.fromGearShift ? 'РЕЖИМ ПОД МУЗЫКУ НЕДОСТУПЕН' : 'НЕТ МУЗЫКАЛЬНЫХ ФАЙЛОВ',
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 20,
             ),
@@ -542,6 +567,7 @@ class _MusicScreenState extends State<MusicScreen> with WidgetsBindingObserver {
           const SizedBox(height: 10),
           const Text(
             'Добавьте MP3 файлы в папку assets/music/',
+            textAlign: TextAlign.center,
             style: TextStyle(
               color: Colors.white70,
               fontSize: 16,
@@ -910,9 +936,9 @@ class _MusicScreenState extends State<MusicScreen> with WidgetsBindingObserver {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                'СПИСОК ТРЭКОВ',
-                style: TextStyle(
+              Text(
+                widget.fromGearShift ? 'РЕЖИМ ПОД МУЗЫКУ - ТРЭКИ' : 'СПИСОК ТРЭКОВ',
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
