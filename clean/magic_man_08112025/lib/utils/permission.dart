@@ -27,7 +27,7 @@ isRequiredPermissionsGranted() async {
     //print('Battery optimization not required (using periodic sync only)');
 
     bool contactsGranted = false;
-    bool locationGranted = false;
+    bool locationGranted = true;
 
     try {
       contactsGranted = await Permission.contacts.isGranted;
@@ -36,12 +36,12 @@ isRequiredPermissionsGranted() async {
       // print('Error checking contacts permission: $e');
     }
 
-    try {
-      locationGranted = await Permission.location.isGranted;
-      //print('Location permission: $locationGranted');
-    } catch (e) {
-      // print('Error checking location permission: $e');
-    }
+    // try {
+    //   locationGranted = await Permission.location.isGranted;
+    //   //print('Location permission: $locationGranted');
+    // } catch (e) {
+    //   // print('Error checking location permission: $e');
+    // }
 
     // Only require contacts and location permissions
     final allGranted = contactsGranted && locationGranted;
@@ -232,7 +232,6 @@ Future<bool> requestStartPermissions(BuildContext context) async {
   try {
     // Step 1: Request location and contacts
     final permissions = [
-      Permission.location,
       Permission.contacts,
       Permission.notification
     ];

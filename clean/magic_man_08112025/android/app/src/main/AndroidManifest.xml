@@ -20,16 +20,16 @@
     <uses-permission android:name="android.permission.WRITE_CONTACTS" />
 
     <!-- Location -->
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+<!--    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />-->
+<!--    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />-->
+<!--    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />-->
 
     <!-- Foreground services -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+<!--    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />-->
+<!--    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />-->
+<!--    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />-->
     <!-- Notifications (Android 13+) -->
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+<!--    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />-->
 
     <!-- Other system & hardware permissions -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -48,8 +48,8 @@
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
 
     <!--Audio Recording-->
-    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
-    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+<!--    <uses-permission android:name="android.permission.RECORD_AUDIO"/>-->
+<!--    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />-->
     <application
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon"
